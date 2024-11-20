@@ -70,7 +70,7 @@ def main_worker(gpu, ngpus_per_node, args):
         base_model = 'predictor'
     else:
         base_model = 'base'
-    env_dict = get_environment_shape(args.dataset, args.horizon,base_model)
+    env_dict = get_environment_shape(args.dataset, args.horizon, base_model)
     args.action_dim = env_dict['action_dim']
     args.observation_dim = env_dict['observation_dim']
     args.class_dim = env_dict['class_dim']
@@ -82,10 +82,10 @@ def main_worker(gpu, ngpus_per_node, args):
     args.n_train_steps = env_dict['n_train_steps']
     epoch_env = env_dict['epochs']
     args.lr = env_dict['lr']
-        
+
     current_time = time.strftime("%Y%m%d_%H%M%S", time.localtime())
     wandb_name = f"{args.base_model}_{args.name}_{current_time}"
-    
+
     args.ifMask = False
 
     if args.verbose:
@@ -149,23 +149,27 @@ def main_worker(gpu, ngpus_per_node, args):
         num_workers=args.num_thread_reader,
         sampler=test_sampler,
     )
-    from model import diffusion, temporal, temporalPredictor,temporalPreAll,temporalPreStep,temporalPredictorCasual
+    from model import diffusion, temporal, temporalPredictor, temporalPreAll, temporalPreStep, temporalPredictorCasual
 
     # create model
     if args.base_model == 'base':
-        temporal_model = temporal.TemporalUnet(args,dim=args.model_dim,dim_mults=(1, 2, 4), )
+        temporal_model = temporal.TemporalUnet(
+            args, dim=args.model_dim, dim_mults=(1, 2, 4), )
     elif args.base_model == 'predictor':
-        temporal_model = temporalPredictor.TemporalUnet(args,dim=args.model_dim,dim_mults=(1, 2, 4), )
+        temporal_model = temporalPredictor.TemporalUnet(
+            args, dim=args.model_dim, dim_mults=(1, 2, 4), )
     elif args.base_model == 'preAll':
-        temporal_model = temporalPreAll.TemporalUnet(args,dim=args.model_dim,dim_mults=(1, 2, 4), )
+        temporal_model = temporalPreAll.TemporalUnet(
+            args, dim=args.model_dim, dim_mults=(1, 2, 4), )
     elif args.base_model == 'preStep':
-        temporal_model = temporalPreStep.TemporalUnet(args,dim=args.model_dim,dim_mults=(1, 2, 4), )
+        temporal_model = temporalPreStep.TemporalUnet(
+            args, dim=args.model_dim, dim_mults=(1, 2, 4), )
     elif args.base_model == 'preCas':
-        temporal_model = temporalPredictorCasual.TemporalUnet(args,dim=args.model_dim,dim_mults=(1, 2, 4),)
+        temporal_model = temporalPredictorCasual.TemporalUnet(
+            args, dim=args.model_dim, dim_mults=(1, 2, 4),)
     else:
         RuntimeError('unvalid base model!')
-    
-        
+
     if args.base_model != 'base':
         args.base_model = 'predictor'
 
@@ -196,16 +200,16 @@ def main_worker(gpu, ngpus_per_node, args):
     else:
         model.model = torch.nn.DataParallel(model.model).cuda()
         model.ema_model = torch.nn.DataParallel(model.ema_model).cuda()
-        
+
     scale1 = parse_fraction_or_float(args.scale1)
     scale2 = parse_fraction_or_float(args.scale2)
-    
+
     scheduler = get_lr_schedule_with_warmup(
         model.optimizer, int(args.n_train_steps * epoch_env),
-        args.dataset,args.base_model,
+        args.dataset, args.base_model,
         args.schedule
         # scale1=scale1, scale2=scale2,
-        )
+    )
 
     checkpoint_dir = os.path.join(os.path.dirname(
         __file__), 'checkpoint', args.checkpoint_dir)
@@ -214,14 +218,14 @@ def main_worker(gpu, ngpus_per_node, args):
 
     if args.resume:
         if args.resume_path == 'None':
-            checkpoint_path = get_last_checkpoint(checkpoint_dir,args.name)
+            checkpoint_path = get_last_checkpoint(checkpoint_dir, args.name)
         else:
             checkpoint_path = args.resume_path
-        
+
         if args.epochs != None:
             epoch_env = args.epochs
-            
-        print('load checkpoint path:',checkpoint_path)
+
+        print('load checkpoint path:', checkpoint_path)
         if checkpoint_path:
             print("=> loading checkpoint '{}'".format(checkpoint_path), args)
             checkpoint = torch.load(
@@ -232,13 +236,12 @@ def main_worker(gpu, ngpus_per_node, args):
             model.optimizer.load_state_dict(checkpoint["optimizer"])
             model.step = checkpoint["step"]
             scheduler.load_state_dict(checkpoint["scheduler"])
-            
+
     if args.rank == 0:
         project_name = f"MTID_{args.dataset}_T{args.horizon}"
         wandb.init(project=project_name, name=wandb_name, config=args,
-                   settings=wandb.Settings(_disable_stats=True))  # Add this line)
+                   settings=wandb.Settings(_disable_stats=True), mode="offline")  # Add this line)
         wandb.watch(model.model)
-
 
     if args.cudnn_benchmark:
         cudnn.benchmark = True
@@ -262,8 +265,6 @@ def main_worker(gpu, ngpus_per_node, args):
     max_train_epoch = 0
     max_test_acc = 0
     max_test_epoch = 0
-
-    
 
     # Main training loop across epochs
     for epoch in tqdm(range(args.start_epoch, epoch_env), desc='total train'):
@@ -290,11 +291,11 @@ def main_worker(gpu, ngpus_per_node, args):
                 trajectory_success_rate_meter.cuda()).item()
             MIoU1_meter_reduced = reduce_tensor(MIoU1_meter.cuda()).item()
             MIoU2_meter_reduced = reduce_tensor(MIoU2_meter.cuda()).item()
-            
-            
+
             correct_all_reduced = []
             for i in range(len(correct_all)):
-                correct_all_reduced.append(reduce_tensor(correct_all[i].cuda()).item())
+                correct_all_reduced.append(
+                    reduce_tensor(correct_all[i].cuda()).item())
 
             if args.rank == 0:
                 logs = OrderedDict()
@@ -304,7 +305,7 @@ def main_worker(gpu, ngpus_per_node, args):
                 logs['Train/Traj_Success_Rate'] = trajectory_success_rate_meter_reduced
                 logs['Train/MIoU1'] = MIoU1_meter_reduced
                 logs['Train/MIoU2'] = MIoU2_meter_reduced
-              
+
                 for i in range(len(correct_all_reduced)):
                     logs['Train/acc_all_' + str(i)] = correct_all_reduced[i]
                 wandb.log(logs, step=epoch + 1)
@@ -329,8 +330,6 @@ def main_worker(gpu, ngpus_per_node, args):
             losses, acc_top1, acc_top5, \
                 trajectory_success_rate_meter, MIoU1_meter, MIoU2_meter, \
                 correct_all = validate(test_loader, model.ema_model, args)
-            
-
 
             # max_test_acc = max(max_test_acc, trajectory_success_rate_meter)
             if trajectory_success_rate_meter > max_test_acc:
@@ -344,10 +343,11 @@ def main_worker(gpu, ngpus_per_node, args):
                 trajectory_success_rate_meter.cuda()).item()
             MIoU1_meter_reduced = reduce_tensor(MIoU1_meter.cuda()).item()
             MIoU2_meter_reduced = reduce_tensor(MIoU2_meter.cuda()).item()
-           
+
             correct_all_reduced = []
             for i in range(len(correct_all)):
-                correct_all_reduced.append(reduce_tensor(correct_all[i].cuda()).item())
+                correct_all_reduced.append(
+                    reduce_tensor(correct_all[i].cuda()).item())
 
             # If the current process is the main process (rank 0), log the validation metrics
             if args.rank == 0:
@@ -358,6 +358,9 @@ def main_worker(gpu, ngpus_per_node, args):
                 logs['Val/Traj_Success_Rate'] = trajectory_success_rate_meter_reduced
                 logs['Val/MIoU1'] = MIoU1_meter_reduced
                 logs['Val/MIoU2'] = MIoU2_meter_reduced
+
+                print(trajectory_success_rate_meter_reduced,
+                      acc_top1_reduced, MIoU2_meter_reduced, max_eva, MIoU1_meter_reduced)
                 for i in range(len(correct_all_reduced)):
                     logs['Val/acc_all_' + str(i)] = correct_all_reduced[i]
                 wandb.log(logs, step=epoch + 1)
@@ -365,16 +368,16 @@ def main_worker(gpu, ngpus_per_node, args):
             # Save checkpoint if the new trajectory success rate is better
             if trajectory_success_rate_meter_reduced > max_eva and acc_top1_reduced >= max_acc:
                 # if not (trajectory_success_rate_meter_reduced == max_eva and acc_top1_reduced < max_acc):
-                # ckpt_max_path = save_checkpoint_max(args.name,
-                #                                     {
-                #                                         "epoch": epoch + 1,
-                #                                         "model": model.model.state_dict(),
-                #                                         "ema": model.ema_model.state_dict(),
-                #                                         "optimizer": model.optimizer.state_dict(),
-                #                                         "step": model.step,
-                #                                         "scheduler": scheduler.state_dict(),
-                #                                     }, save_max, old_max_epoch, epoch + 1, args.rank
-                #                                     )
+                ckpt_max_path = save_checkpoint_max(args.name,
+                                                    {
+                                                        "epoch": epoch + 1,
+                                                        "model": model.model.state_dict(),
+                                                        "ema": model.ema_model.state_dict(),
+                                                        "optimizer": model.optimizer.state_dict(),
+                                                        "step": model.step,
+                                                        "scheduler": scheduler.state_dict(),
+                                                    }, save_max, old_max_epoch, epoch + 1, args.rank
+                                                    )
                 max_eva = trajectory_success_rate_meter_reduced
                 max_mAcc = MIoU2_meter_reduced
                 max_mIoU = MIoU1_meter_reduced
@@ -394,16 +397,17 @@ def main_worker(gpu, ngpus_per_node, args):
         #                             "scheduler": scheduler.state_dict(),
         #                         }, checkpoint_dir, epoch + 1
         #                         )
-                
+
     print(f'max_train_acc:{max_train_acc} max_train_epoch:{max_train_epoch}')
     print(f'max_test_acc:{max_test_acc} max_test_epoch:{max_test_epoch}')
 
     # add inference
     if ckpt_max_path == '':
-        ckpt_max_path = get_last_checkpoint(args.checkpoint_max_root,args.name)
-        
+        ckpt_max_path = get_last_checkpoint(
+            args.checkpoint_max_root, args.name)
+
     ckpt_max_path = os.path.join(args.checkpoint_max_root, ckpt_max_path)
-    
+
     if ckpt_max_path:
         print("=> loading checkpoint '{}'".format(ckpt_max_path), args)
         checkpoint = torch.load(
@@ -449,7 +453,8 @@ def main_worker(gpu, ngpus_per_node, args):
         # acc_aT_reduced_sum.append(acc_aT_reduced)
         correct_all_reduced = []
         for i in range(len(correct_all)):
-            correct_all_reduced.append(reduce_tensor(correct_all[i].cuda()).item())
+            correct_all_reduced.append(
+                reduce_tensor(correct_all[i].cuda()).item())
 
     if args.rank == 0:
         time_end = time.time()
@@ -471,21 +476,21 @@ def main_worker(gpu, ngpus_per_node, args):
         #       test_times, np.var(acc_a0_reduced_sum))
         # print('Val/acc_aT', sum(acc_aT_reduced_sum) /
         #       test_times, np.var(acc_aT_reduced_sum))
-        
+
         for i in range(len(correct_all_reduced)):
             print(f'Val/CorrectAll_{i}', sum(correct_all_reduced[i]) /
-              test_times, np.var(correct_all_reduced[i]))
-        
+                  test_times, np.var(correct_all_reduced[i]))
+
         final_logs = {
-                'Final/EpochAcc@1': EpochAcc1,
-                'Final/Traj_Success_Rate': Traj_Success_Rate,
-                'Final/MIoU1': sum(MIoU1_meter_reduced_sum) / test_times,
-                'Final/MIoU2': MIoU2,
-            }
-            
+            'Final/EpochAcc@1': EpochAcc1,
+            'Final/Traj_Success_Rate': Traj_Success_Rate,
+            'Final/MIoU1': sum(MIoU1_meter_reduced_sum) / test_times,
+            'Final/MIoU2': MIoU2,
+        }
+
         for i, acc in enumerate(correct_all_reduced):
             final_logs[f'Final/CorrectAll_{i}'] = acc
-        
+
         wandb.log(final_logs)
         wandb.finish()
 
@@ -521,8 +526,9 @@ def save_checkpoint_max(name, state, checkpoint_dir, old_epoch, epoch, rank):
     return cktp_name
 
 
-def get_last_checkpoint(checkpoint_dir,name):
-    all_ckpt = glob.glob(os.path.join(checkpoint_dir, f'epoch_{name}_*.pth.tar'))
+def get_last_checkpoint(checkpoint_dir, name):
+    all_ckpt = glob.glob(os.path.join(
+        checkpoint_dir, f'epoch_{name}_*.pth.tar'))
     if all_ckpt:
         all_ckpt = sorted(all_ckpt)
         return all_ckpt[-1]

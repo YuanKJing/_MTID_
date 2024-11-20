@@ -18,7 +18,6 @@ from utils import *
 from utils.args import get_args
 
 
-
 def print_and_size(tensor):
     # 先检查 tensor 是否是 torch.Tensor 类型
     if isinstance(tensor, torch.Tensor):
@@ -67,7 +66,8 @@ def accuracy2(output, target, topk=(1,), max_traj_len=0):
         # print_and_size(correct_a)  # torch.Size([256, 3])
         correct_all = []
         for i in range(correct_a.shape[1]):
-            correct_all.append(correct_a[:,i].reshape(-1).float().mean().mul_(100.0))
+            correct_all.append(
+                correct_a[:, i].reshape(-1).float().mean().mul_(100.0))
 
         # 计算第一个时间步的平均准确率
         # correct_a0 = correct_a[:, 0].reshape(-1).float().mean().mul_(100.0)
@@ -146,7 +146,7 @@ def accuracy2(output, target, topk=(1,), max_traj_len=0):
         MIoU2 = MIoU_sum / batch_size
 
         # 返回计算结果
-        return res[0], trajectory_success_rate, MIoU1, MIoU2,correct_all
+        return res[0], trajectory_success_rate, MIoU1, MIoU2, correct_all
 
 
 def test_inference(val_loader, model, args):
@@ -210,9 +210,9 @@ def test_inference(val_loader, model, args):
 
             # flatten the video labels
             video_label_reshaped = video_label.view(-1)
-            
+
             # if args.if_jump == 1:
-            output = model(cond, if_jump=True)
+            output = model(cond, if_jump=True, whetherTrain=False)
             # else:
             #     output = model(cond, if_jump=False)
             # print('output')
@@ -245,16 +245,17 @@ def test_inference(val_loader, model, args):
             trajectory_success_rate.item(), batch_size_current)
         MIoU1_meter.update(MIoU1, batch_size_current)
         MIoU2_meter.update(MIoU2, batch_size_current)
-        
+
         for i in range(len(correct_all)):
             CorrectAll[i].update(correct_all[i], batch_size_current)
-            
+
         for i in range(len(CorrectAll)):
             CorrectAll[i] = torch.tensor(CorrectAll[i].avg)
 
     return torch.tensor(acc_top1.avg), \
         torch.tensor(trajectory_success_rate_meter.avg), \
-        torch.tensor(MIoU1_meter.avg), torch.tensor(MIoU2_meter.avg), CorrectAll
+        torch.tensor(MIoU1_meter.avg), torch.tensor(
+            MIoU2_meter.avg), CorrectAll
 
 
 def reduce_tensor(tensor):
@@ -272,7 +273,8 @@ def main():
     args = get_args()
     os.environ['PYTHONHASHSEED'] = str(args.seed)
 
-    env_dict = get_environment_shape(args.dataset, args.horizon,args.base_model)
+    env_dict = get_environment_shape(
+        args.dataset, args.horizon, args.base_model)
     args.action_dim = env_dict['action_dim']
     args.observation_dim = env_dict['observation_dim']
     args.class_dim = env_dict['class_dim']
@@ -284,7 +286,7 @@ def main():
     args.n_train_steps = env_dict['n_train_steps']
     # epoch_env = env_dict['epochs']
     args.lr = env_dict['lr']
-    
+
     if args.verbose:
         print(args)
     if args.seed is not None:
@@ -466,7 +468,7 @@ def main_worker(gpu, ngpus_per_node, args):
         #       test_times, np.var(acc_aT_reduced_sum))
         for i in range(len(CorrectAll)):
             print(f'Val/CorrectAll_{i}', sum(CorrectAll[i]) /
-              test_times, np.var(CorrectAll[i]))
+                  test_times, np.var(CorrectAll[i]))
 
 
 if __name__ == "__main__":

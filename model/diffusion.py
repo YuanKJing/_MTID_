@@ -25,21 +25,23 @@ class GaussianDiffusion(nn.Module):
         self.kind = args.kind
         self.mask_loss = args.mask_loss
         self.mask_iteration = args.mask_iteration
+        self.repeat_loss = args.repeat_loss
 
         # Set the number of timesteps for diffusion
-        self.n_timesteps = args.n_diffusion_steps # default=200
-        self.clip_denoised = args.clip_denoised  # Whether to clip the denoised output, default=True
+        self.n_timesteps = args.n_diffusion_steps  # default=200
+        # Whether to clip the denoised output, default=True
+        self.clip_denoised = args.clip_denoised
         self.eta = 0.0  # Eta parameter for DDIM sampling
         self.random_ratio = 1.0  # Ratio of random noise
-        
-        self.l_order=args.l_order
-        self.l_pos=args.l_pos
-        self.l_perm=args.l_perm
-        
+
+        self.l_order = args.l_order
+        self.l_pos = args.l_pos
+        self.l_perm = args.l_perm
+
         # Calculate the beta schedule using a cosine function
         betas = cosine_beta_schedule(self.n_timesteps)
         alphas = 1. - betas
-        alphas_cumprod = torch.cumprod(alphas, dim=0) # 计算dim=0上的累积乘积
+        alphas_cumprod = torch.cumprod(alphas, dim=0)  # 计算dim=0上的累积乘积
         alphas_cumprod_prev = torch.cat([torch.ones(1), alphas_cumprod[:-1]])
 
         # ---------------------------ddim (Denoising Diffusion Implicit Models)--------------------------------
@@ -89,7 +91,7 @@ class GaussianDiffusion(nn.Module):
         self.loss_type = args.loss_type
         self.mask_scale = args.mask_scale
         self.loss_fn = Losses[self.loss_type](
-            self.action_dim, self.class_dim, self.weight,self.mask_scale)
+            self.action_dim, self.class_dim, self.weight, self.mask_scale)
 
     # ------------------------------------------ sampling ------------------------------------------#
 
@@ -105,12 +107,9 @@ class GaussianDiffusion(nn.Module):
         return posterior_mean, posterior_variance, posterior_log_variance_clipped
 
     # Function to compute the mean and variance of the model's predictions
-    def p_mean_variance(self, x, cond, t, mask=None):
+    def p_mean_variance(self, x, cond, t):
         x_recon = self.model(x, t)  # Reconstruct x from the model
-        
-        if mask is not None:
-            x_recon = x_recon * mask
-            
+
         if self.clip_denoised:
             x_recon.clamp(-1., 1.)  # Clip the denoised output if specified
         else:
@@ -162,13 +161,13 @@ class GaussianDiffusion(nn.Module):
 
     # Function to perform standard diffusion model sampling
     @torch.no_grad()
-    def p_sample(self, x, cond, t, mask=None):
+    def p_sample(self, x, cond, t):
         b, *_, device = *x.shape, x.device
         # t是当前的时间步，一个标量或一维张量，指示我们处于去噪过程中的哪个阶段
         # model_mean 模型预测的均值
         # 模型预测的对数方差
         model_mean, _, model_log_variance = self.p_mean_variance(
-            x=x, cond=cond, t=t, mask=mask)
+            x=x, cond=cond, t=t)
         noise = torch.randn_like(x) * self.random_ratio
         # (t == 0): 返回一个布尔张量，其中 ：
         # t 为 0 的位置为 True，否则为 False。
@@ -181,7 +180,7 @@ class GaussianDiffusion(nn.Module):
 
     # Loop for sampling, supporting both diffusion and DDIM methods
     @torch.no_grad()
-    def p_sample_loop(self, cond, if_jump):
+    def p_sample_loop(self, cond, if_jump, whetherTrain):
         device = self.betas.device
         batch_size = len(cond[0])
         horizon = self.horizon
@@ -191,8 +190,8 @@ class GaussianDiffusion(nn.Module):
         x = torch.randn(shape, device=device) * \
             self.random_ratio  # Initialize xt for Noise and diffusion
         # x = torch.zeros(shape, device=device)   # for Deterministic
-        mask = compute_mask(x,self.class_dim,self.action_dim,self.horizon)
-        if self.ifMask:
+        mask = compute_mask(x, self.class_dim, self.action_dim, self.horizon)
+        if self.ifMask and whetherTrain:
             x = condition_projection(x, cond, self.action_dim, self.class_dim)
             x = x * mask
         else:
@@ -200,17 +199,17 @@ class GaussianDiffusion(nn.Module):
         '''
         The if-else below is for diffusion, should be removed for Noise and Deterministic
         '''
-        if not if_jump: # DDPM
+        if not if_jump:  # DDPM
             for i in reversed(range(0, self.n_timesteps)):
                 timesteps = torch.full(
-                    (batch_size,), i, device=device, dtype=torch.long) # 用于创建一个给定形状的张量，并填充指定的值
-                
-                x = self.p_sample(x, cond, timesteps, mask=mask)
-                
+                    (batch_size,), i, device=device, dtype=torch.long)  # 用于创建一个给定形状的张量，并填充指定的值
+
+                x = self.p_sample(x, cond, timesteps)
+
                 x = condition_projection(
                     x, cond, self.action_dim, self.class_dim)
 
-        else: #DDIM
+        else:  # DDIM
             for i in reversed(range(0, self.ddim_timesteps)):
                 timesteps = torch.full(
                     (batch_size,), self.ddim_timestep_seq[i], device=device, dtype=torch.long)
@@ -227,7 +226,6 @@ class GaussianDiffusion(nn.Module):
                     x, cond, self.action_dim, self.class_dim)
                 if self.mask_iteration == "add":
                     x = x * mask
-                    
 
         '''
         The two lines below are for Noise and Deterministic
@@ -262,7 +260,8 @@ class GaussianDiffusion(nn.Module):
         # x_noisy = noise   # for Noise and Deterministic
         mask = None
         if self.ifMask:
-            mask = compute_mask(x_start,self.class_dim,self.action_dim,self.horizon)
+            mask = compute_mask(x_start, self.class_dim,
+                                self.action_dim, self.horizon)
             x_start = x_start * mask
         # For diffusion, add noise to the input
         x_noisy = self.q_sample(x_start=x_start, t=t, noise=noise)
@@ -276,12 +275,13 @@ class GaussianDiffusion(nn.Module):
 
         x_recon = condition_projection(
             x_recon, cond, self.action_dim, self.class_dim)
-        
-        
-        if self.loss_type == 'Sequence_CE':        
-             loss = self.loss_fn(x_recon, x_start, self.l_order,self.l_pos,self.l_perm,self.kind)  # Compute the loss
+
+        if self.loss_type == 'Sequence_CE':
+            loss = self.loss_fn(x_recon, x_start, self.l_order,
+                                self.l_pos, self.l_perm, self.kind)  # Compute the loss
         elif self.mask_loss == '1':
-            loss = self.loss_fn(x_recon, x_start, mask)  # Compute the loss
+            loss = self.loss_fn(x_recon, x_start, mask,
+                                self.repeat_loss)  # Compute the loss
         else:
             loss = self.loss_fn(x_recon, x_start)
         return loss
@@ -297,5 +297,5 @@ class GaussianDiffusion(nn.Module):
         return self.p_losses(x, cond, t)
 
     # Forward pass of the model
-    def forward(self, cond, if_jump=True):
-        return self.p_sample_loop(cond, True)
+    def forward(self, cond, if_jump=True, whetherTrain=True):
+        return self.p_sample_loop(cond, if_jump, whetherTrain)

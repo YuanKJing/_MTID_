@@ -54,7 +54,7 @@ def validate(val_loader, model, args):
             x_start[:, :, args.class_dim:args.class_dim +
                     args.action_dim] = action_label_onehot
             x_start[:, :, :args.class_dim] = task_class_
-            output = model(cond)
+            output = model(cond, False)
             actions_pred = output.contiguous()
 
             if dist.is_initialized():
@@ -69,7 +69,7 @@ def validate(val_loader, model, args):
 
             (acc1, acc5), trajectory_success_rate, MIoU1, MIoU2,  correct_all = \
                 accuracy(actions_pred.cpu(), video_label_reshaped.cpu(),
-                         topk=(1,5), max_traj_len=args.horizon)
+                         topk=(1, 5), max_traj_len=args.horizon)
 
         losses.update(loss.item(), batch_size_current)
         acc_top1.update(acc1.item(), batch_size_current)
@@ -80,11 +80,12 @@ def validate(val_loader, model, args):
         MIoU2_meter.update(MIoU2, batch_size_current)
         # A0_acc.update(a0_acc, batch_size_current)
         # AT_acc.update(aT_acc, batch_size_current)
-        
+
         for i in range(len(correct_all)):
             CorrectAll[i].update(correct_all[i], batch_size_current)
-            
+
     CorrectAll = [torch.tensor(meter.avg) for meter in CorrectAll]
     return torch.tensor(losses.avg), torch.tensor(acc_top1.avg), torch.tensor(acc_top5.avg), \
         torch.tensor(trajectory_success_rate_meter.avg), \
-        torch.tensor(MIoU1_meter.avg), torch.tensor(MIoU2_meter.avg),  CorrectAll
+        torch.tensor(MIoU1_meter.avg), torch.tensor(
+            MIoU2_meter.avg),  CorrectAll
