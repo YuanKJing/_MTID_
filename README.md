@@ -11,7 +11,7 @@
 ## Paper Teaser
 <!-- Teaser Image -->
 <div align="center" style="margin-top: 20px;">
-  <img src="figure/architecture1.png" alt="FreeBlend Teaser" width="90%" style="border-radius: 8px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);">
+  <img src="figure/architecture1.png" alt="FreeBlend Teaser" width="100%" style="border-radius: 8px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);">
 </div>
 
 <div align="center" style="margin-top: 15px;">
@@ -31,12 +31,6 @@ In a conda env with cuda available, run:
 conda create --name MTID python=3.10
 conda activate MTID
 pip install -r requirements.txt
-```
-or
-
-```
-conda env create -f environment.yaml
-conda activate MTID
 ```
 
 
