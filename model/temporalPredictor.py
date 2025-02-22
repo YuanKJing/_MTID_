@@ -248,35 +248,3 @@ class TemporalUnet(nn.Module):
         x = einops.rearrange(x, 'b t h -> b h t')
 
         return x 
-        # return x
-
-
-
-# shape of x
-
-# torch.Size([12, 256, 1536])
-
-# start-------------------------------
-# torch.Size([256, 256, 3])
-# torch.Size([256, 256, 3])
-# up--------------
-# torch.Size([256, 512, 2])
-# torch.Size([256, 512, 2])
-# up--------------
-# torch.Size([256, 1024, 1])
-# torch.Size([256, 1024, 1])
-# up--------------
-# middle-------------
-# torch.Size([256, 1024, 1])
-# torch.Size([256, 1024, 1])
-# middle-------------
-# torch.Size([256, 512, 1])
-# torch.Size([256, 512, 1])
-# down--------------
-# torch.Size([256, 256, 2])
-# torch.Size([256, 256, 2])
-# down--------------
-# final-----------------------
-# torch.Size([256, 256, 3])
-# torch.Size([256, 1659, 3])
-# torch.Size([256, 3, 1659])

@@ -1,5 +1,5 @@
 {
-    "base_path": "/home/MTID/dataset",
+    "base_path": "/home/hwang/Projects/MTID/dataset",
     "environments": [
         {
             "name": "crosstask_how_predictor",

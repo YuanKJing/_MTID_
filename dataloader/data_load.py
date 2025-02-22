@@ -35,7 +35,6 @@ class PlanningDataset(Dataset):
             else:
                 cross_task_data_name = args.json_path_train.replace(
                     ".json", f"_{args.horizon}.json")
-
             if os.path.exists(cross_task_data_name):
                 with open(cross_task_data_name, 'r') as f:
                     self.json_data = json.load(f)

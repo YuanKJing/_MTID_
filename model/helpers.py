@@ -308,55 +308,6 @@ def compute_mask(x,class_dim,action_dim,horizon):
 # ---------------------------------- Loss -------------------------------------#
 # -----------------------------------------------------------------------------#
 
-from model.loss_function import compute_losses
-class Sequence_CE(nn.Module):
-
-    def __init__(self,  action_dim, class_dim, weight):
-        super().__init__()
-        self.action_dim = action_dim
-        self.class_dim = class_dim
-        self.weight = weight
-
-    def forward(self, pred, targ,l_order=200.0, l_pos=0.01, l_perm=2.0,kind = 0):
-        """
-        :param pred: [B, T, task_dim+action_dim+observation_dim]
-        :param targ: [B, T, task_dim+action_dim+observation_dim]
-        :return:
-        """
-        mse_loss = F.mse_loss(pred, targ, reduction='none').sum()
-        
-        total_loss, ce_loss, order_loss, pos_loss, \
-            perm_loss = compute_losses(pred[:,:,self.class_dim:self.class_dim +
-                                        self.action_dim], targ[:,:,self.class_dim:self.class_dim +
-                                        self.action_dim], lambda_oc=l_order,
-                                        lambda_fp=l_pos, lambda_r=l_perm)
-        if kind == 0 :
-            return ce_loss
-        elif kind == 1:
-            return ce_loss+order_loss
-        elif kind == 2:
-            return ce_loss + pos_loss
-        elif kind == 3:
-            return ce_loss + perm_loss
-        elif kind == 4:
-            return mse_loss
-        elif kind == 5:
-            return mse_loss + order_loss
-        elif kind == 6:
-            return mse_loss + pos_loss
-        elif kind == 7:
-            return mse_loss + perm_loss
-        else:
-            RuntimeError('unvalid kind')
-        
-        def scale_tuple_elements(t, factor=1000):
-            return tuple(x * factor for x in t)
-        
-        # loss_action = scale_tuple_elements(loss_action)
-        # print(loss_action)
-
-        return ce_loss
-
 
 class Weighted_Gradient_MSE(nn.Module):
 
@@ -510,7 +461,6 @@ class Variance_Weighted_MSE(nn.Module):
 # print("Loss:", loss.item())
 
 Losses = {
-    'Sequence_CE': Sequence_CE,
     'Weighted_Gradient_MSE': Weighted_Gradient_MSE,
     'Variance_Weighted_MSE':Variance_Weighted_MSE,
     'Weighted_MSE':Weighted_MSE

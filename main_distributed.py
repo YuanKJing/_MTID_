@@ -149,7 +149,7 @@ def main_worker(gpu, ngpus_per_node, args):
         num_workers=args.num_thread_reader,
         sampler=test_sampler,
     )
-    from model import diffusion, temporal, temporalPredictor, temporalPreAll, temporalPreStep, temporalPredictorCasual
+    from model import diffusion, temporal, temporalPredictor
 
     # create model
     if args.base_model == 'base':
@@ -158,15 +158,6 @@ def main_worker(gpu, ngpus_per_node, args):
     elif args.base_model == 'predictor':
         temporal_model = temporalPredictor.TemporalUnet(
             args, dim=args.model_dim, dim_mults=(1, 2, 4), )
-    elif args.base_model == 'preAll':
-        temporal_model = temporalPreAll.TemporalUnet(
-            args, dim=args.model_dim, dim_mults=(1, 2, 4), )
-    elif args.base_model == 'preStep':
-        temporal_model = temporalPreStep.TemporalUnet(
-            args, dim=args.model_dim, dim_mults=(1, 2, 4), )
-    elif args.base_model == 'preCas':
-        temporal_model = temporalPredictorCasual.TemporalUnet(
-            args, dim=args.model_dim, dim_mults=(1, 2, 4),)
     else:
         RuntimeError('unvalid base model!')
 

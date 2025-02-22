@@ -25,7 +25,6 @@ class GaussianDiffusion(nn.Module):
         self.kind = args.kind
         self.mask_loss = args.mask_loss
         self.mask_iteration = args.mask_iteration
-        self.repeat_loss = args.repeat_loss
 
         # Set the number of timesteps for diffusion
         self.n_timesteps = args.n_diffusion_steps  # default=200
@@ -276,12 +275,8 @@ class GaussianDiffusion(nn.Module):
         x_recon = condition_projection(
             x_recon, cond, self.action_dim, self.class_dim)
 
-        if self.loss_type == 'Sequence_CE':
-            loss = self.loss_fn(x_recon, x_start, self.l_order,
-                                self.l_pos, self.l_perm, self.kind)  # Compute the loss
-        elif self.mask_loss == '1':
-            loss = self.loss_fn(x_recon, x_start, mask,
-                                self.repeat_loss)  # Compute the loss
+        if self.mask_loss == '1':
+            loss = self.loss_fn(x_recon, x_start, mask)  # Compute the loss
         else:
             loss = self.loss_fn(x_recon, x_start)
         return loss

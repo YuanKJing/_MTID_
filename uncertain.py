@@ -12,7 +12,7 @@ import utils
 
 from torch.distributed import ReduceOp
 from dataloader.data_load import PlanningDataset
-from model import diffusion, temporal
+from model import diffusion, temporalPredictor
 from utils import *
 from utils.args import get_args
 
@@ -210,6 +210,14 @@ def main():
     # os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
     args = get_args()
     os.environ['PYTHONHASHSEED'] = str(args.seed)
+    if args.base_model != 'base':
+        base_model = 'predictor'
+    else:
+        base_model = 'base'
+    env_dict = get_environment_shape(args.dataset, args.horizon, base_model)
+    args.action_dim = env_dict['action_dim']
+    args.observation_dim = env_dict['observation_dim']
+    args.class_dim = env_dict['class_dim']
 
     if args.verbose:
         print(args)
@@ -257,7 +265,7 @@ def main_worker(gpu, ngpus_per_node, args):
     test_dataset = PlanningDataset(
         args.root,
         args=args,
-        is_val=True,
+        is_val=False,
         model=None,
     )
     if args.distributed:
@@ -277,17 +285,15 @@ def main_worker(gpu, ngpus_per_node, args):
     )
 
     # create model
-    temporal_model = temporal.TemporalUnet(
-        args.action_dim + args.observation_dim + args.class_dim,
+    temporal_model = temporalPredictor.TemporalUnet(
+        args,
         dim=256,
         dim_mults=(1, 2, 4), )
 
     diffusion_model = diffusion.GaussianDiffusion(
-        temporal_model, args.horizon, args.observation_dim, args.action_dim, args.class_dim, args.n_diffusion_steps,
-        loss_type='Weighted_Gradient_MSE', clip_denoised=True, )
+        args,temporal_model)
 
-    model = utils.Trainer(diffusion_model, None, args.ema_decay, args.lr, args.gradient_accumulate_every,
-                          args.step_start_ema, args.update_ema_every, args.log_freq)
+    model = utils.Trainer(args,diffusion_model, None)
 
     if args.pretrain_cnn_path:
         net_data = torch.load(args.pretrain_cnn_path)
@@ -317,7 +323,7 @@ def main_worker(gpu, ngpus_per_node, args):
         model.ema_model = torch.nn.DataParallel(model.ema_model).cuda()
 
     if args.resume:
-        checkpoint_path = ""
+        checkpoint_path = "/home/hwang/Projects/MTID/save_max/epoch_main_test1_0036_0.pth.tar"
         if checkpoint_path:
             checkpoint = torch.load(
                 checkpoint_path, map_location='cuda:{}'.format(args.gpu))

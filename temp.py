@@ -151,7 +151,7 @@ def main_worker(gpu, ngpus_per_node, args):
         json_ret.append(json_current)
 
     # Define the output filename
-    data_name = "output.json"
+    data_name = "output{}.json".format(args.horizon)
 
     # Open the file in write mode
     with open(data_name, 'w') as f:

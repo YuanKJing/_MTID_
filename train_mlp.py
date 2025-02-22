@@ -322,13 +322,8 @@ def main_worker(gpu, ngpus_per_node, args):
         sampler=test_sampler,
     )
 
-    # create model
-    from resnet import ResNet
-
-    if args.classfier_model == 'resnet':
-        model = ResNet(depth=29, num_filters=None, output_dim=18, input_dim=1536, sequence_length=2)
-        
-    elif args.classfier_model == 'transformer':
+    # create model  
+    if args.classfier_model == 'transformer':
         # num_heads=8, num_layers=6, dim_feedforward=2048, dropout=0.3
         # nohup python train_mlp.py --name=note7 --dataset=coin --gpu=4 --epochs=800 --num_heads=4 --num_layers=2 --dim_feedforward=2048 --dropout=0.7 > out/output_note7.log 2>&1 &
         model = TransformerHead(
@@ -508,7 +503,7 @@ def test(val_loader, model):
             task_s = model(observations.cuda())  # [bs, 18]
             # task_class_one_hot = task_class
             
-            task_class_one_hot = F.one_hot(task_class, num_classes=180).float()
+            task_class_one_hot = F.one_hot(task_class, num_classes=18).float()
 
             loss = F.mse_loss(task_s, task_class_one_hot)
             # loss = F.cross_entropy(task_s, task_class_one_hot.cuda())
@@ -545,8 +540,8 @@ def train(train_loader, n_train_steps, model, scheduler, args, optimizer, if_cal
                 task_s = model(observations.cuda())
                 # print(task_s.shape)
                 # print(task_s)
-                task_class_one_hot = F.one_hot(task_class, num_classes=180).float()
-                # print(task_class_one_hot.shape)
+                task_class_one_hot = F.one_hot(task_class, num_classes=18).float()
+                # print(task_class_one_hot.shape) (256*18)
                 # print(task_class_one_hot)
 
                 loss = F.mse_loss(task_s, task_class_one_hot)

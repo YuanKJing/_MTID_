@@ -162,9 +162,6 @@ class TemporalUnet(nn.Module):
             x = resnet2(x, t)
             h.append(x)
             x = downsample(x)
-            # print("up--------------")
-
-        # print("middle-------------")
 
         # Forward pass through middle blocks
         # print(x.shape)
@@ -182,32 +179,9 @@ class TemporalUnet(nn.Module):
             # print(x.shape)
             x = resnet2(x, t)
             x = upsample(x)
-            # print("down--------------")
-
-        # print("final-----------------------")
-        # Final convolution and rearrange dimensions back
-        # print(x.shape)
         x = self.final_conv(x)
         # print(x.shape)
         x = einops.rearrange(x, 'b t h -> b h t')
-        # print(x.shape) # torch.Size([256, 3, 1659])
-
-        # transformer_input = x
-
-        # for transformer_block in self.transformer_blocks:
-        #     transformer_input = transformer_block(transformer_input)
-
-        # return x + transformer_input
         return x
 
 
-# class TransformerBlock(nn.Module):
-#     def __init__(self, dim, num_heads, num_layers):
-#         super(TransformerBlock, self).__init__()
-#         # embed_dim must be divisible by num_heads
-#         encoder_layers = TransformerEncoderLayer(dim, num_heads)
-#         self.transformer = TransformerEncoder(encoder_layers, num_layers)
-
-#     def forward(self, x):
-#         x = self.transformer(x)
-#         return x

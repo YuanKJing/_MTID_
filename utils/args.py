@@ -5,15 +5,15 @@ def get_args(description='whl'):
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument('--checkpoint_root',
                         type=str,
-                        default='/home/MTID/checkpoint',
+                        default='/home/hwang/Projects/MTID/checkpoint',
                         help='checkpoint dir root')
     parser.add_argument('--checkpoint_max_root',
                         type=str,
-                        default='/home/MTID/save_max',
+                        default='/home/hwang/Projects/MTID/save_max',
                         help='checkpoint max dir root')
     parser.add_argument('--log_root',
                         type=str,
-                        default='/home/MTID/log/log',
+                        default='/home/hwang/Projects/MTID/log/log',
                         help='log dir root')
     parser.add_argument('--checkpoint_dir',
                         type=str,
@@ -87,19 +87,19 @@ def get_args(description='whl'):
                         help='')
     parser.add_argument('--root',
                         type=str,
-                        default='/home/MTID/dataset/crosstask',
+                        default='/home/hwang/Projects/MTID/dataset/crosstask',
                         help='root path of dataset crosstask')
     parser.add_argument('--json_path_train',
                         type=str,
-                        default='/home/MTID/dataset/crosstask/crosstask_release/train_list.json',
+                        default='/home/hwang/Projects/MTID/dataset/crosstask/crosstask_release/train_list.json',
                         help='path of the generated json file for train')
     parser.add_argument('--json_path_val',
                         type=str,
-                        default='/home/MTID/dataset/crosstask/crosstask_release/test_list.json',
+                        default='/home/hwang/Projects/MTID/dataset/crosstask/crosstask_release/test_list.json',
                         help='path of the generated json file for val train mlp')
     parser.add_argument('--json_path_val2',
                         type=str,
-                        default='/home/MTID/dataset/crosstask/crosstask_release/output.json',
+                        default='/home/hwang/Projects/MTID/dataset/crosstask/crosstask_release/output.json',
                         help='path of the generated json file for val train model')
     ########################################################################################
 
@@ -147,7 +147,7 @@ def get_args(description='whl'):
                         help='how many steps do we log once')
     parser.add_argument('--gpu', default=None, type=int,
                         help='GPU id to use.')
-
+    parser.add_argument('--pretrain_cnn_path',default=False,type=int)
     # parameters that need to be modified
     parser.add_argument('--seed', default=217, type=int,
                         help='seed for initializing training. ')
@@ -219,7 +219,7 @@ def get_args(description='whl'):
     parser.add_argument('--model_dim',type=int,default=256,help='model dimension')
     parser.add_argument('--module_kind',type=str,default='all',help='ablation for module design')
     parser.add_argument('--encoder_kind',type=str,default='conv')
-    parser.add_argument('--mask_loss',type=str,default='none',help='1')
+    parser.add_argument('--mask_loss',type=str,default='1',help='1')
     parser.add_argument('--weight', default=6, type=float,
                         help='weight of the loss function')
     parser.add_argument('--mask_iteration', type=str, default='none', help='add')
