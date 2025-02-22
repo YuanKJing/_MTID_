@@ -1,7 +1,7 @@
 # MTID: Masked Temporal Interpolation Diffusion For Procedure Planning
 <div align="center">
 
-[![arXiv](https://img.shields.io/badge/arXiv-2502.05606-red)](https://arxiv.org/abs/2502.05606)
+[![arXiv](https://img.shields.io/badge/arXiv-2502.05606-red)](https://openreview.net/forum?id=HnpDHiItd2&referrer=%5BAuthor%20Console%5D(%2Fgroup%3Fid%3DICLR.cc%2F2025%2FConference%2FAuthors%23your-submissions))
 </div>
 
 > #### [**MTID**: Masked Temporal Interpolation Diffusion For Procedure Planning]()
