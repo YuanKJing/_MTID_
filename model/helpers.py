@@ -454,12 +454,6 @@ class Variance_Weighted_MSE(nn.Module):
         return loss_action
 
 
-
-# 示例用法
-# predictions = torch.tensor([1.0, 2.0, 3.0, 4.0])
-# loss = variance_loss(predictions)
-# print("Loss:", loss.item())
-
 Losses = {
     'Weighted_Gradient_MSE': Weighted_Gradient_MSE,
     'Variance_Weighted_MSE':Variance_Weighted_MSE,
@@ -550,37 +544,3 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 
-# class Logger:
-#     def __init__(self, log_dir, n_logged_samples=10, summary_writer=SummaryWriter, if_exist=False):
-#         self._log_dir = log_dir
-#         print('logging outputs to ', log_dir)
-#         self._n_logged_samples = n_logged_samples
-#         self._summ_writer = summary_writer(
-#             log_dir, flush_secs=120, max_queue=10)
-#         if not if_exist:
-#             log = logging.getLogger(log_dir)
-#             if not log.handlers:
-#                 log.setLevel(logging.DEBUG)
-#                 if not os.path.exists(log_dir):
-#                     os.mkdir(log_dir)
-#                 fh = logging.FileHandler(os.path.join(log_dir, 'log.txt'))
-#                 fh.setLevel(logging.INFO)
-#                 formatter = logging.Formatter(
-#                     fmt='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S')
-#                 fh.setFormatter(formatter)
-#                 log.addHandler(fh)
-#             self.log = log
-
-#     def log_scalar(self, scalar, name, step_):
-#         self._summ_writer.add_scalar('{}'.format(name), scalar, step_)
-
-#     def log_scalars(self, scalar_dict, group_name, step, phase):
-#         """Will log all scalars in the same plot."""
-#         self._summ_writer.add_scalars('{}_{}'.format(
-#             group_name, phase), scalar_dict, step)
-
-#     def flush(self):
-#         self._summ_writer.flush()
-
-#     def log_info(self, info):
-#         self.log.info("{}".format(info))

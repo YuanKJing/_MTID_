@@ -30,24 +30,14 @@ class CrossAttention(nn.Module):
 
     def forward(self, x, context):
 
-        # print(x.shape)  # torch.Size([256, 256, 3])
-        # print(context.shape)  # torch.Size([256, 256])
-
         context = context.unsqueeze(2)  # torch.Size([256,256,1])
 
         x = einops.rearrange(x, 'b t c -> c b t')
         # Assuming you added only the sequence length dimension
         context = einops.rearrange(context, 'b s c -> c b s')
-        # If you added both dimensions, you might need to rearrange differently:
-        # context = einops.rearrange(context, 's b c -> b s c')
-
-        # print(x.shape)  # torch.Size([3, 256, 256])
-        # print(context.shape)  # torch.Size([1, 256, 1536])
 
         context = self.linear(context)
-        # print(x.shape[2])
-        # 1024
-        # residual torch.Size([256, 1024, 1])
+
         attn_output, _ = self.multihead_attn(x, context, context)
         x = x + attn_output
         x = self.layer_norm(x)
@@ -89,15 +79,11 @@ class ResidualTemporalBlock(nn.Module):
         # Forward pass with time embedding (for diffusion models)
         out = self.blocks[0](x) + self.time_mlp(t)   # for diffusion
 
-        # print(out.shape)  # torch.Size([256, 256, 3])
         out2 = self.cross_attention(out, context)
 
         out = out2 + out
 
         out = self.blocks[1](out)
-        
-        # print("residual",out.shape)
-        # print('self.out_channels',self.out_channels)
 
         return out + self.residual_conv(x)
 
@@ -197,12 +183,8 @@ class TemporalUnet(nn.Module):
         cross_features = self.ActionPredictor(x[:, 0, self.args.class_dim + self.args.action_dim:],
                                               x[:, -1, self.args.class_dim + self.args.action_dim:])
 
-        # print(cross_features.shape) torch.Size([256, 12, 1536])
         cross_features = cross_features.permute(1, 0, 2)
-        # print(cross_features.shape) torch.Size([12, 256, 1536])
 
-        # x shape (batch_size,horizon,dimension)
-        # Rearrange input tensor dimensions
         x = einops.rearrange(x, 'b h t -> b t h')
 
         # Get the time embedding (for diffusion models)
@@ -213,7 +195,6 @@ class TemporalUnet(nn.Module):
         #    device=x.device).long()  # Random timestep for diffusion
         t = self.time_mlp(time)   # for diffusion
 
-        # print(t.shape)torch.Size([256, 256])
         h = []
         index = 0
 

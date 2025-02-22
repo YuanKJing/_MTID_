@@ -14,16 +14,7 @@ class ObservationConvEncoder(nn.Module):
         self.conv3 = nn.Conv1d(
             output_channels, output_channels, kernel_size=3, stride=1, padding=1)
 
-        # 初始化卷积核为近似恒等映射
-        # with torch.no_grad():
-        #     self.conv1.weight.fill_(0)
-        #     self.conv1.bias.fill_(0)
-        #     self.conv2.weight.fill_(0)
-        #     self.conv2.bias.fill_(0)
-        #     self.conv1.weight[:, :, 1] = 1
-        #     self.conv2.weight[:, :, 1] = 1
-            
-    # input shape (batch_size,observation_dim)
+
     def forward(self, x):
         
         # print(x.shape)
@@ -90,9 +81,7 @@ class LatentSpaceInterpolator(nn.Module):
     def forward(self, x1, x2):
 
         batch_size, *_ = x1.shape
-        
-        # print(x1.shape)# torch.Size([256, 1536])
-        # print(x2.shape)# torch.Size([256, 1536])
+
 
         x_combined = torch.stack([x1, x2], dim=0)
         # print(x_combined.shape)# torch.Size([2, 256, 1536])
@@ -127,7 +116,6 @@ class LatentSpaceInterpolator(nn.Module):
             alphas = alphas ** 2
         # print(alphas.shape)# torch.Size([256, 12])
         elif self.interpolation_init == 11:
-            # 创建一个先减小后增大的插值序列
             half_block = self.block_num // 2
             alphas_first_half = torch.linspace(6, 1, half_block)
             alphas_second_half = torch.linspace(1, 6, self.block_num - half_block)
@@ -215,20 +203,10 @@ class ActionPredictor(nn.Module):
             x1_encoded = self.encoder(x1)
             x2_encoded = self.encoder(x2)
 
-            # x1_encoded = x1
-            # x2_encoded = x2
-            # print(x1_encoded.shape)
-
             # print(x1_encoded.shape)torch.Size([256, 1536, 1])
             interpolated_frames = self.interpolator(
                 x1_encoded, x2_encoded)
-            
-            # print(interpolated_frames.shape)
 
-            # print(interpolated_frames.shape)  # torch.Size([256, 12, 1536])
-
-            # shape (num_frames, batch_size, observation_dim)
-            # num_frames, batch_size, observation_dim = interpolated_frames.shape
             transformer_input = interpolated_frames
             # print(transformer_input.shape)torch.Size([256, 12, 1536])
 
@@ -236,10 +214,5 @@ class ActionPredictor(nn.Module):
                 transformer_input = transformer_block(transformer_input)
 
             output = transformer_input + interpolated_frames
-            # print(output.shape)torch.Size([256, 12, 1536])
 
-            # output = self.ffn(output)
-            # print(output.shape)torch.Size([256, 12, 256])
-
-            # resnet connect
             return output

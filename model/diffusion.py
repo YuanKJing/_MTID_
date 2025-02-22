@@ -162,17 +162,10 @@ class GaussianDiffusion(nn.Module):
     @torch.no_grad()
     def p_sample(self, x, cond, t):
         b, *_, device = *x.shape, x.device
-        # t是当前的时间步，一个标量或一维张量，指示我们处于去噪过程中的哪个阶段
-        # model_mean 模型预测的均值
-        # 模型预测的对数方差
         model_mean, _, model_log_variance = self.p_mean_variance(
             x=x, cond=cond, t=t)
         noise = torch.randn_like(x) * self.random_ratio
-        # (t == 0): 返回一个布尔张量，其中 ：
-        # t 为 0 的位置为 True，否则为 False。
-        # (1 - (t == 0).float()): 将布尔张量转换为浮点张量，并将 True 变为 0.0，False 变为 1.0。
-        # reshape(b, *((1,) * (len(x.shape) - 1))): 重塑为与 x 形状匹配的张量，其中第一个维度为 b，其他维度为 1。
-        # nonzero_mask: 创建一个掩码张量，其中 t 非 0 的位置为 1.0，其他位置为 0.0。
+
         nonzero_mask = (1 - (t == 0).float()).reshape(b,
                                                       *((1,) * (len(x.shape) - 1)))
         return model_mean + nonzero_mask * (0.5 * model_log_variance).exp() * noise

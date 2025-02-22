@@ -44,17 +44,14 @@ class ResidualTemporalBlock(nn.Module):
         out = self.blocks[1](out)
         return out + self.residual_conv(x)
 
-# Define the Temporal Unet model
-# 自定义层，根据kind动态控制actions矩阵的不同部位
 class ActionModifier(nn.Module):
     def __init__(self):
         super(ActionModifier, self).__init__()
-        self.weights1 = nn.Parameter(torch.randn(1))  # 可学习的权重1
-        self.weights2 = nn.Parameter(torch.randn(1))  # 可学习的权重2
-        self.weights3 = nn.Parameter(torch.randn(1))  # 可学习的权重3
+        self.weights1 = nn.Parameter(torch.randn(1)) 
+        self.weights2 = nn.Parameter(torch.randn(1)) 
+        self.weights3 = nn.Parameter(torch.randn(1)) 
 
     def forward(self, actions, kind):
-        # 根据kind控制actions的不同部位
         if kind == 0:
             actions[:, :35] *= self.weights1
         elif kind == 1:
@@ -75,17 +72,8 @@ class TemporalUnet(nn.Module):
 
         transition_dim = args.action_dim + args.observation_dim + args.class_dim
 
-        # Determine the dimensions at each stage
-        # transition_dim is the initial dimension (1659)
-        # dim is the base dimension (256)
-        # dim_mults is a list of multipliers ([1, 2, 4])
         dims = [transition_dim, *map(lambda m: dim * m, dim_mults)]
 
-        # dims will be a list combining transition_dim and the scaled values of dim
-        # For example: [1659, 256, 512, 1024]
-
-        # in_out will be a list of tuples representing pairs of consecutive dimensions
-        # [(1659, 256), (256, 512), (512, 1024)]
         in_out = list(zip(dims[:-1], dims[1:]))
 
         time_dim = dim
@@ -136,11 +124,6 @@ class TemporalUnet(nn.Module):
             nn.Conv1d(dim, transition_dim, 1),
         )
 
-        # num_transformer_blocks = 1
-
-        # self.transformer_blocks = nn.ModuleList([TransformerBlock(
-        #     args.observation_dim + args.class_dim+args.action_dim, num_heads=7,
-        #     num_layers=args.transformer_num) for _ in range(num_transformer_blocks)])
 
     def forward(self, x, time):
         # Rearrange input tensor dimensions
@@ -156,31 +139,21 @@ class TemporalUnet(nn.Module):
 
         # Forward pass through downsampling blocks
         for resnet, resnet2, downsample in self.downs:
-            # print(x.shape)
             x = resnet(x, t)
-            # print(x.shape)
             x = resnet2(x, t)
             h.append(x)
             x = downsample(x)
 
-        # Forward pass through middle blocks
-        # print(x.shape)
         x = self.mid_block1(x, t)
-        # print(x.shape)
         x = self.mid_block2(x, t)
-
-        # print("middle-------------")
 
         # Forward pass through upsampling blocks
         for resnet, resnet2, upsample in self.ups:
             x = torch.cat((x, h.pop()), dim=1)
-            # print(x.shape)
             x = resnet(x, t)
-            # print(x.shape)
             x = resnet2(x, t)
             x = upsample(x)
         x = self.final_conv(x)
-        # print(x.shape)
         x = einops.rearrange(x, 'b t h -> b h t')
         return x
 
