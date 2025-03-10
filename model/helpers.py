@@ -6,6 +6,7 @@ from einops.layers.torch import Rearrange
 from torch.optim.lr_scheduler import LambdaLR
 import os
 import numpy as np
+import json
 import logging
 # from tensorboardX import SummaryWriter
 import itertools
@@ -16,6 +17,7 @@ from collections import OrderedDict
 # -----------------------------------------------------------------------------#
 # ---------------------------------- modules ----------------------------------#
 # -----------------------------------------------------------------------------#
+
 
 def zero_module(module):
     """
@@ -238,6 +240,8 @@ def condition_projection(x, conditions, action_dim, class_dim):
 
     # clone the observation dim at the start and end
     for t, val in conditions.items():
+        if t == 'observation':
+            continue
         if t != 'task':
             x[:, t, class_dim + action_dim:] = val.clone()
 
@@ -247,7 +251,8 @@ def condition_projection(x, conditions, action_dim, class_dim):
 
     return x
 
-def compute_mask(x,class_dim,action_dim,horizon):
+
+def compute_mask(x, class_dim, action_dim, horizon, dataset):
     # args = get_args()
     task_class = {
         "0": 23521,
@@ -271,32 +276,53 @@ def compute_mask(x,class_dim,action_dim,horizon):
     }
     task_ids = torch.argmax(x[:, :, : class_dim], axis=-1)  # (256*3)
     task_ids = task_ids[:, 0]
-    
-    current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    
-    action_one_hot = np.load(
-        os.path.join(
-            current_dir,
-            "dataset/crosstask/crosstask_release/actions_one_hot.npy",
-        ),
-        allow_pickle=True,
-    ).item()
 
-    def find_action_index(task_id, action_one_hot):
+    current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if dataset == 'crosstask_how':
+        classes_to_actions = np.load(
+            os.path.join(
+                current_dir,
+                "dataset/crosstask/crosstask_release/actions_one_hot.npy",
+            ),
+            allow_pickle=True,
+        ).item()
+    # 加载新的 classes_to_actions.json 映射
+    elif dataset == 'coin':
+        with open(os.path.join(current_dir, "dataset/coin/classes_to_actions.json"), "r") as f:
+            classes_to_actions = json.load(f)
+    elif dataset == 'NIV':
+        with open(os.path.join(current_dir, "dataset/NIV/classes_to_actions.json"), "r") as f:
+            classes_to_actions = json.load(f)
+
+    def find_action_index(task_id, classes_to_actions):
         action_indices = []
-        for key, value in action_one_hot.items():
-            # 检查键是否以 task_id 开头
-            if key.startswith(str(task_id) + "_"):
-                action_index = value
-                action_indices.append(action_index)
+        if dataset == 'crosstask_how':
+            for key, value in classes_to_actions.items():
+                # 检查键是否以 task_id 开头
+                if key.startswith(str(task_id) + "_"):
+                    action_index = value
+                    action_indices.append(action_index)
+        else:
+            # print("task_id:", str(task_id))
+            # print(classes_to_actions[str(task_id)])
+            if str(task_id) in classes_to_actions:
+                action_indices.extend(classes_to_actions[str(task_id)])
         return action_indices
 
     mask = torch.zeros(x.shape[0], action_dim)
     for i in range(len(task_ids)):
         task_id = str(task_ids[i].item())
-        action_indices = find_action_index(task_class[task_id], action_one_hot)
-        for j in action_indices:
-            mask[i, j] = 1.0
+        if dataset == 'crosstask_how':
+            action_indices = find_action_index(
+                task_class[task_id], classes_to_actions)
+            for j in action_indices:
+                mask[i, j] = 1.0
+        else:
+            # print("jinru coin/NIV")
+            action_indices = find_action_index(task_id, classes_to_actions)
+            # print("action_indices:", action_indices)
+            for j in action_indices:
+                mask[i, j-1] = 1.0
 
     maskTotal = torch.ones_like(x)
     maskTotal[:, :, class_dim: class_dim + action_dim] = mask.unsqueeze(
@@ -309,6 +335,55 @@ def compute_mask(x,class_dim,action_dim,horizon):
 # -----------------------------------------------------------------------------#
 
 
+class Sequence_CE(nn.Module):
+
+    def __init__(self,  action_dim, class_dim, weight):
+        super().__init__()
+        self.action_dim = action_dim
+        self.class_dim = class_dim
+        self.weight = weight
+
+    def forward(self, pred, targ, l_order=200.0, l_pos=0.01, l_perm=2.0, kind=0):
+        """
+        :param pred: [B, T, task_dim+action_dim+observation_dim]
+        :param targ: [B, T, task_dim+action_dim+observation_dim]
+        :return:
+        """
+        mse_loss = F.mse_loss(pred, targ, reduction='none').sum()
+
+        total_loss, ce_loss, order_loss, pos_loss, \
+            perm_loss = compute_losses(pred[:, :, self.class_dim:self.class_dim +
+                                            self.action_dim], targ[:, :, self.class_dim:self.class_dim +
+                                                                   self.action_dim], lambda_oc=l_order,
+                                       lambda_fp=l_pos, lambda_r=l_perm)
+        if kind == 0:
+            return ce_loss
+        elif kind == 1:
+            return ce_loss + order_loss
+        elif kind == 2:
+            return ce_loss + pos_loss
+        elif kind == 3:
+            return ce_loss + perm_loss
+        elif kind == 4:
+            return mse_loss
+        elif kind == 5:
+            return mse_loss + order_loss
+        elif kind == 6:
+            return mse_loss + pos_loss
+        elif kind == 7:
+            return mse_loss + perm_loss
+        else:
+            RuntimeError('unvalid kind')
+
+        def scale_tuple_elements(t, factor=1000):
+            return tuple(x * factor for x in t)
+
+        # loss_action = scale_tuple_elements(loss_action)
+        # print(loss_action)
+
+        return ce_loss
+
+
 class Weighted_Gradient_MSE(nn.Module):
 
     def __init__(self,  action_dim, class_dim, weight, mask_scale):
@@ -318,6 +393,7 @@ class Weighted_Gradient_MSE(nn.Module):
         self.class_dim = class_dim
         self.weight = weight
         self.mask_scale = mask_scale
+
     def forward(self, pred, targ, mask=None):
         """
         :param pred: [B, T, task_dim+action_dim+observation_dim]
@@ -344,7 +420,8 @@ class Weighted_Gradient_MSE(nn.Module):
         # mask = None
         if mask is not None:
             # Scale tensor
-            scale = torch.full((time_steps,), self.mask_scale, device=pred.device)
+            scale = torch.full(
+                (time_steps,), self.mask_scale, device=pred.device)
             # Apply weights to the action part of the loss
             loss_action = loss_action[
                 :, :, self.class_dim: self.class_dim + self.action_dim
@@ -364,19 +441,21 @@ class Weighted_Gradient_MSE(nn.Module):
                             self.action_dim] *= weights[t]
 
         loss_action = loss_action.sum()
-        
+
         # print(loss_action)
         return loss_action
-    
+
+
 class Weighted_MSE(nn.Module):
 
-    def __init__(self,  action_dim, class_dim, weight,mask_scale):
+    def __init__(self,  action_dim, class_dim, weight, mask_scale):
         super().__init__()
         # self.register_buffer('weights', weights)
         self.action_dim = action_dim
         self.class_dim = class_dim
         self.weight = weight
         self.mask_scale = mask_scale
+
     def forward(self, pred, targ, mask=None):
         """
         :param pred: [B, T, task_dim+action_dim+observation_dim]
@@ -391,7 +470,8 @@ class Weighted_MSE(nn.Module):
                     self.action_dim] *= self.weight
         if mask is not None:
             # Scale tensor
-            scale = torch.full((time_steps,), self.mask_scale, device=pred.device)
+            scale = torch.full(
+                (time_steps,), self.mask_scale, device=pred.device)
             # Apply weights to the action part of the loss
             loss_action = loss_action[
                 :, :, self.class_dim: self.class_dim + self.action_dim
@@ -403,14 +483,17 @@ class Weighted_MSE(nn.Module):
                     loss_action[:, t, :] * scale[t],
                     loss_action[:, t, :],
                 )
-                
+
         loss_action = loss_action.sum()
         return loss_action
-    
+
+
 def variance_loss(predictions):
     mean = torch.mean(predictions)
     variance = torch.mean((predictions - mean) ** 2)
     return variance.sum()
+
+
 class Variance_Weighted_MSE(nn.Module):
 
     def __init__(self,  action_dim, class_dim, weight):
@@ -454,10 +537,15 @@ class Variance_Weighted_MSE(nn.Module):
         return loss_action
 
 
+# 示例用法
+# predictions = torch.tensor([1.0, 2.0, 3.0, 4.0])
+# loss = variance_loss(predictions)
+# print("Loss:", loss.item())
 Losses = {
+    'Sequence_CE': Sequence_CE,
     'Weighted_Gradient_MSE': Weighted_Gradient_MSE,
-    'Variance_Weighted_MSE':Variance_Weighted_MSE,
-    'Weighted_MSE':Weighted_MSE
+    'Variance_Weighted_MSE': Variance_Weighted_MSE,
+    'Weighted_MSE': Weighted_MSE
 }
 
 # -----------------------------------------------------------------------------#
@@ -465,9 +553,9 @@ Losses = {
 # -----------------------------------------------------------------------------#
 
 
-def get_lr_schedule_with_warmup(optimizer, num_training_steps,dataset,
-                                base_model,schedule,scale1=1/6, scale2=1/4,train=False,last_epoch=-1):
-    
+def get_lr_schedule_with_warmup(optimizer, num_training_steps, dataset,
+                                base_model, schedule, scale1=1/6, scale2=1/4, train=False, last_epoch=-1):
+
     if not train:
         if dataset == 'crosstask_how' and base_model == 'base':
             num_warmup_steps_scale = 1 / 6
@@ -476,8 +564,8 @@ def get_lr_schedule_with_warmup(optimizer, num_training_steps,dataset,
             num_warmup_steps_scale = 1 / 3
             decay_steps_scale = 1 / 2
         elif dataset == 'NIV' and base_model == 'base':
-            num_warmup_steps_scale =  9 / 13
-            decay_steps_scale =  3 / 13
+            num_warmup_steps_scale = 9 / 13
+            decay_steps_scale = 3 / 13
         elif dataset == 'coin' and base_model == 'base':
             num_warmup_steps_scale = 1 / 4
             decay_steps_scale = 1 / 6
@@ -488,13 +576,12 @@ def get_lr_schedule_with_warmup(optimizer, num_training_steps,dataset,
             num_warmup_steps_scale = 1 / 3
             decay_steps_scale = 1 / 2
         elif dataset == 'NIV' and base_model == 'predictor':
-            num_warmup_steps_scale =  1/5
-            decay_steps_scale =  1/3
-        elif dataset == 'coin' and base_model == 'predictor':
-            # print('coin&predictor')
             num_warmup_steps_scale = 1 / 6
             decay_steps_scale = 1 / 4
-            
+        elif dataset == 'coin' and base_model == 'predictor':
+            num_warmup_steps_scale = 1 / 6
+            decay_steps_scale = 1 / 4
+
         else:
             RuntimeError('select error!')
     else:
@@ -504,12 +591,12 @@ def get_lr_schedule_with_warmup(optimizer, num_training_steps,dataset,
     # decay_steps_scale = 1 / 4
     num_warmup_steps = int(num_training_steps * num_warmup_steps_scale)
     decay_steps = int(num_training_steps * decay_steps_scale)
-    
+
     print('num_training_steps')
     print(num_training_steps)
     print('decay_steps')
     print(decay_steps)
-    
+
     def lr_lambda(current_step):
         if current_step <= num_warmup_steps:
             return max(0., float(current_step) / float(max(1, num_warmup_steps)))
@@ -544,3 +631,37 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 
+# class Logger:
+#     def __init__(self, log_dir, n_logged_samples=10, summary_writer=SummaryWriter, if_exist=False):
+#         self._log_dir = log_dir
+#         print('logging outputs to ', log_dir)
+#         self._n_logged_samples = n_logged_samples
+#         self._summ_writer = summary_writer(
+#             log_dir, flush_secs=120, max_queue=10)
+#         if not if_exist:
+#             log = logging.getLogger(log_dir)
+#             if not log.handlers:
+#                 log.setLevel(logging.DEBUG)
+#                 if not os.path.exists(log_dir):
+#                     os.mkdir(log_dir)
+#                 fh = logging.FileHandler(os.path.join(log_dir, 'log.txt'))
+#                 fh.setLevel(logging.INFO)
+#                 formatter = logging.Formatter(
+#                     fmt='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S')
+#                 fh.setFormatter(formatter)
+#                 log.addHandler(fh)
+#             self.log = log
+
+#     def log_scalar(self, scalar, name, step_):
+#         self._summ_writer.add_scalar('{}'.format(name), scalar, step_)
+
+#     def log_scalars(self, scalar_dict, group_name, step, phase):
+#         """Will log all scalars in the same plot."""
+#         self._summ_writer.add_scalars('{}_{}'.format(
+#             group_name, phase), scalar_dict, step)
+
+#     def flush(self):
+#         self._summ_writer.flush()
+
+#     def log_info(self, info):
+#         self.log.info("{}".format(info))

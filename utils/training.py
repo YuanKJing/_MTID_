@@ -1,5 +1,5 @@
 import copy
-from model.helpers import AverageMeter
+from model.helpers import AverageMeter, compute_mask
 from .accuracy import *
 import torch.distributed as dist
 
@@ -105,6 +105,7 @@ class Trainer(object):
         self.reset_parameters()
         self.step = 0
         self.action_dim = args.action_dim
+        self.gpu = args.gpu
 
     def reset_parameters(self):
         """
@@ -152,10 +153,14 @@ class Trainer(object):
 
                 bs, T = batch[1].shape
 
+                # ！Note: The number of visual features should be one more than the number of actions,
+                # because actions represent intermediate states between visual features
+
                 # contiguous():
                 # Description: Ensures that the tensor's data is stored in a contiguous chunk of memory.
                 # This is often necessary because some operations in PyTorch require that tensors be contiguous,
                 # meaning their memory is laid out in a single, unbroken block.
+
                 global_img_tensors = batch[0].cuda().contiguous().float()
 
                 # set the start and end observation feature
@@ -166,6 +171,10 @@ class Trainer(object):
                             args.action_dim:] = global_img_tensors[:, 0, :]  # Os
                 img_tensors[:, -1, args.class_dim +
                             args.action_dim:] = global_img_tensors[:, -1, :]  # Og
+                # img_tensors[:, :, :] = global_img_tensors[:, :, :]
+
+                # print("global_img_tensors[:, -1, :].shape")
+                # print(global_img_tensors[:, -1, :].shape) # 256,1536
 
                 img_tensors = img_tensors.cuda()
 
@@ -179,7 +188,8 @@ class Trainer(object):
 
                 # Initialize an empty tensor for one-hot encoded action labels.
                 # If distributed training is initialized, use model.module.action_dim, else use model.action_dim.
-                action_label_onehot = torch.zeros((video_label.size(0), self.action_dim)).cuda()
+                action_label_onehot = torch.zeros(
+                    (video_label.size(0), self.action_dim)).cuda()
 
                 # Create an index tensor with values ranging from 0 to the length of video_label.
                 ind = torch.arange(0, len(video_label)).cuda()
@@ -198,7 +208,8 @@ class Trainer(object):
                             args.action_dim] = action_label_onehot
 
                 # Initialize an empty tensor for one-hot encoded task labels. Shape: [batch_size, class_dim]
-                task_onehot = torch.zeros((task_class.size(0), args.class_dim)).cuda()
+                task_onehot = torch.zeros(
+                    (task_class.size(0), args.class_dim)).cuda()
 
                 # Create an index tensor with values ranging from 0 to the length of task_class.
                 ind = torch.arange(0, len(task_class)).cuda()
@@ -223,14 +234,23 @@ class Trainer(object):
                 # This integrates the task labels into the img_tensors.
                 img_tensors[:, :, :args.class_dim] = task_class_
 
+                observation_tensor = global_img_tensors[:, :, :].float()
+                if not isinstance(observation_tensor, torch.Tensor):
+                    observation_tensor = torch.tensor(
+                        observation_tensor, device=f'cuda:{self.gpu}')
+
                 # Prepare the condition inputs
                 # 0: start image,T-1:end image,task:task_class
-                cond = {0: global_img_tensors[:, 0, :].float(), T - 1: global_img_tensors[:, -1, :].float(),
+                cond = {0: global_img_tensors[:, 0, :].float(),
+                        T - 1: global_img_tensors[:, -1, :].float(),
+                        'observation': observation_tensor,
                         'task': task_class_}
 
                 x = img_tensors.float()
-                # print('start loss')
-
+                # print(x[0, 0, :args.class_dim])
+                # mask = compute_mask(x, args.class_dim,
+                #                     args.action_dim, args.horizon, args.dataset)
+                # print(mask[0, 0, args.class_dim:args.class_dim+args.action_dim])
                 # Compute the loss
                 if dist.is_initialized():
                     loss = self.model.module.loss(x, cond)
@@ -244,7 +264,7 @@ class Trainer(object):
                 # print('backward')
                 losses.update(loss.item(), bs)
                 # print('update')
-            
+
             if args.resume:
                 # print('capturable')
                 self.optimizer.param_groups[0]['capturable'] = True

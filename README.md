@@ -125,10 +125,10 @@ python inference.py --resume --base_model=predictor --gpu=0 --ckpt_path=/path > 
 
 ​	  To evaluate the $Deterministic$ and $Noise$ baselines, you need to modify `temporalPredictor.py` to remove 'time_mlp' modules and modify `diffusion.py` to change the initial noise and `p_sample_loop` process. For $Deterministic$ baseline, `num_sampling`(L26) in `uncertain.py` should be 1.
 
-​	  Modify the checkpoint path(L320) as the evaluated model in `uncertain.py` and run:
+​	  Modify the checkpoint path(L348) as the evaluated model in `uncertain.py` and run:
 
 ```
-nohup python uncertain.py --gpu=0 --num_thread_reader=1 --cudnn_benchmark=1 --pin_memory --base_model=predictor --checkpoint_dir=whl --resume --batch_size=32 --batch_size_val=32 --evaluate > out/result.log 2>&1 &
+nohup python uncertain.py --gpu=1 --num_thread_reader=1 --cudnn_benchmark=1 --pin_memory --base_model=predictor --resume --batch_size=32 --batch_size_val=32 --evaluate > out/result.log 2>&1 &
 ```
 
 

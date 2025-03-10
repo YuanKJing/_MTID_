@@ -9,12 +9,15 @@ import torch.utils.data
 import torch.utils.data.distributed
 import numpy as np
 import utils
+from tqdm import tqdm
+
 
 from torch.distributed import ReduceOp
 from dataloader.data_load import PlanningDataset
-from model import diffusion, temporalPredictor
+from model import diffusion, temporal, temporalPredictor
 from utils import *
 from utils.args import get_args
+from utils.env_args import get_environment_shape
 
 
 def custom_NLL(input, target):
@@ -23,7 +26,8 @@ def custom_NLL(input, target):
 
 def test(val_loader, model, args, all_ref):
     model.eval()
-    num_sampling = 1500     # 1500 for Noise and diffusion, 1 for Deterministic
+    num_sampling = 1     # 1500 for Noise and diffusion, 1 for Deterministic
+    # num_sampling = 1500     # 1500 for Noise and diffusion, 1 for Deterministic
     klv_list = []
     klv_list2 = []
     mc_prec = []
@@ -59,8 +63,12 @@ def test(val_loader, model, args, all_ref):
                 task_onehot[ind, task_class] = 1.
                 task_onehot = task_onehot.cuda()
                 temp = task_onehot.unsqueeze(1)
+                observation_tensor = global_img_tensors[:, :, :].float()
                 task_class_ = temp.repeat(1, T, 1)  # [bs, T, args.class_dim]
-                cond['task'] = task_class_
+                cond = {0: global_img_tensors[:, 0, :].float(),
+                        T - 1: global_img_tensors[:, -1, :].float(),
+                        'observation': observation_tensor,
+                        'task': task_class_}
 
                 output = model(cond, if_jump=True)
                 actions_pred = output.contiguous()
@@ -209,15 +217,8 @@ def reduce_tensor(tensor):
 def main():
     # os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
     args = get_args()
+
     os.environ['PYTHONHASHSEED'] = str(args.seed)
-    if args.base_model != 'base':
-        base_model = 'predictor'
-    else:
-        base_model = 'base'
-    env_dict = get_environment_shape(args.dataset, args.horizon, base_model)
-    args.action_dim = env_dict['action_dim']
-    args.observation_dim = env_dict['observation_dim']
-    args.class_dim = env_dict['class_dim']
 
     if args.verbose:
         print(args)
@@ -241,7 +242,23 @@ def main():
 
 def main_worker(gpu, ngpus_per_node, args):
     args.gpu = gpu
-    # print('gpuid:', args.gpu)
+    
+    if args.base_model != 'base':
+        base_model = 'predictor'
+    else:
+        base_model = 'base'
+    env_dict = get_environment_shape(args.dataset, args.horizon,base_model)
+    args.action_dim = env_dict['action_dim']
+    args.observation_dim = env_dict['observation_dim']
+    args.class_dim = env_dict['class_dim']
+    args.root = env_dict['root']
+    args.json_path_train = env_dict['json_path_train']
+    args.json_path_val = env_dict['json_path_val']
+    args.json_path_val2 = env_dict['json_path_val2']
+    args.n_diffusion_steps = env_dict['n_diffusion_steps']
+    args.n_train_steps = env_dict['n_train_steps']
+    args.epochs = env_dict['epochs']
+    args.lr = env_dict['lr']
 
     if args.distributed:
         if args.multiprocessing_distributed:
@@ -265,7 +282,7 @@ def main_worker(gpu, ngpus_per_node, args):
     test_dataset = PlanningDataset(
         args.root,
         args=args,
-        is_val=False,
+        is_val=True,
         model=None,
     )
     if args.distributed:
@@ -285,15 +302,19 @@ def main_worker(gpu, ngpus_per_node, args):
     )
 
     # create model
-    temporal_model = temporalPredictor.TemporalUnet(
-        args,
-        dim=256,
-        dim_mults=(1, 2, 4), )
+    if args.base_model == 'base':
+        temporal_model = temporal.TemporalUnet(args,
+                                               dim=256,
+                                               dim_mults=(1, 2, 4), )
+    elif args.base_model == 'predictor':
+        temporal_model = temporalPredictor.TemporalUnet(args,
+                                                        dim=256,
+                                                        dim_mults=(1, 2, 4), )
 
     diffusion_model = diffusion.GaussianDiffusion(
-        args,temporal_model)
+        args, temporal_model)
 
-    model = utils.Trainer(args,diffusion_model, None)
+    model = utils.Trainer(args, diffusion_model, test_loader)
 
     if args.pretrain_cnn_path:
         net_data = torch.load(args.pretrain_cnn_path)
@@ -323,7 +344,10 @@ def main_worker(gpu, ngpus_per_node, args):
         model.ema_model = torch.nn.DataParallel(model.ema_model).cuda()
 
     if args.resume:
-        checkpoint_path = "/home/hwang/Projects/MTID/save_max/epoch_main_test1_0036_0.pth.tar"
+        # 检查点路径
+        checkpoint_path = ""
+
+        # 加载检查点
         if checkpoint_path:
             checkpoint = torch.load(
                 checkpoint_path, map_location='cuda:{}'.format(args.gpu))
@@ -346,7 +370,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
     all_ref = np.array(reference)
 
-    for epoch in range(0, test_times):
+    for epoch in tqdm(range(0, test_times), desc='total train'):
         avg_nll, avg_mc, avg_mc_recall, len_unique_avg, avg_kl = test(
             test_loader, model.ema_model, args, all_ref)
         if args.rank == 0:

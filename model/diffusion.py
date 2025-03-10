@@ -25,6 +25,7 @@ class GaussianDiffusion(nn.Module):
         self.kind = args.kind
         self.mask_loss = args.mask_loss
         self.mask_iteration = args.mask_iteration
+        self.dataset = args.dataset
 
         # Set the number of timesteps for diffusion
         self.n_timesteps = args.n_diffusion_steps  # default=200
@@ -50,7 +51,7 @@ class GaussianDiffusion(nn.Module):
             c = self.n_timesteps // ddim_timesteps
             ddim_timestep_seq = np.asarray(list(range(0, self.n_timesteps, c)))
         elif ddim_discr_method == 'quad':
-            ddim_timestep_seq = (
+            ddim_timestep_seq = (c
                 (np.linspace(0, np.sqrt(self.n_timesteps), ddim_timesteps)) ** 2
             ).astype(int)
         else:
@@ -106,8 +107,11 @@ class GaussianDiffusion(nn.Module):
         return posterior_mean, posterior_variance, posterior_log_variance_clipped
 
     # Function to compute the mean and variance of the model's predictions
-    def p_mean_variance(self, x, cond, t):
+    def p_mean_variance(self, x, cond, t, mask=None):
         x_recon = self.model(x, t)  # Reconstruct x from the model
+
+        if mask is not None:
+            x_recon = x_recon * mask
 
         if self.clip_denoised:
             x_recon.clamp(-1., 1.)  # Clip the denoised output if specified
@@ -127,9 +131,10 @@ class GaussianDiffusion(nn.Module):
 
     # Function to perform DDIM sampling
     @torch.no_grad()
-    def p_sample_ddim(self, x, cond, t, t_prev, if_prev=False):
+    def p_sample_ddim(self, x, cond, t, t_prev, if_prev=False, if_visualize=False):
         b, *_, device = *x.shape, x.device
-        x_recon = self.model(x, t)  # Reconstruct x from the model
+        # Reconstruct x from the model
+        x_recon = self.model(x, t, cond['observation'], if_visualize)
 
         if self.clip_denoised:
             x_recon.clamp(-1., 1.)  # Clip the denoised output if specified
@@ -160,19 +165,26 @@ class GaussianDiffusion(nn.Module):
 
     # Function to perform standard diffusion model sampling
     @torch.no_grad()
-    def p_sample(self, x, cond, t):
+    def p_sample(self, x, cond, t, mask=None):
         b, *_, device = *x.shape, x.device
+        # t是当前的时间步，一个标量或一维张量，指示我们处于去噪过程中的哪个阶段
+        # model_mean 模型预测的均值
+        # 模型预测的对数方差
         model_mean, _, model_log_variance = self.p_mean_variance(
-            x=x, cond=cond, t=t)
+            x=x, cond=cond, t=t, mask=mask)
         noise = torch.randn_like(x) * self.random_ratio
-
+        # (t == 0): 返回一个布尔张量，其中 ：
+        # t 为 0 的位置为 True，否则为 False。
+        # (1 - (t == 0).float()): 将布尔张量转换为浮点张量，并将 True 变为 0.0，False 变为 1.0。
+        # reshape(b, *((1,) * (len(x.shape) - 1))): 重塑为与 x 形状匹配的张量，其中第一个维度为 b，其他维度为 1。
+        # nonzero_mask: 创建一个掩码张量，其中 t 非 0 的位置为 1.0，其他位置为 0.0。
         nonzero_mask = (1 - (t == 0).float()).reshape(b,
                                                       *((1,) * (len(x.shape) - 1)))
         return model_mean + nonzero_mask * (0.5 * model_log_variance).exp() * noise
 
     # Loop for sampling, supporting both diffusion and DDIM methods
     @torch.no_grad()
-    def p_sample_loop(self, cond, if_jump, whetherTrain):
+    def p_sample_loop(self, cond, if_jump, if_visualize=False):
         device = self.betas.device
         batch_size = len(cond[0])
         horizon = self.horizon
@@ -182,9 +194,11 @@ class GaussianDiffusion(nn.Module):
         x = torch.randn(shape, device=device) * \
             self.random_ratio  # Initialize xt for Noise and diffusion
         # x = torch.zeros(shape, device=device)   # for Deterministic
-        mask = compute_mask(x, self.class_dim, self.action_dim, self.horizon)
-        if self.ifMask and whetherTrain:
+
+        if self.ifMask:
             x = condition_projection(x, cond, self.action_dim, self.class_dim)
+            mask = compute_mask(x, self.class_dim,
+                                self.action_dim, self.horizon,self.dataset)
             x = x * mask
         else:
             x = condition_projection(x, cond, self.action_dim, self.class_dim)
@@ -196,7 +210,7 @@ class GaussianDiffusion(nn.Module):
                 timesteps = torch.full(
                     (batch_size,), i, device=device, dtype=torch.long)  # 用于创建一个给定形状的张量，并填充指定的值
 
-                x = self.p_sample(x, cond, timesteps)
+                x = self.p_sample(x, cond, timesteps, mask=mask)
 
                 x = condition_projection(
                     x, cond, self.action_dim, self.class_dim)
@@ -209,11 +223,12 @@ class GaussianDiffusion(nn.Module):
                     timesteps_prev = torch.full(
                         (batch_size,), 0, device=device, dtype=torch.long)
                     x = self.p_sample_ddim(
-                        x, cond, timesteps, timesteps_prev, True)
+                        x, cond, timesteps, timesteps_prev, True, if_visualize)
                 else:
                     timesteps_prev = torch.full(
                         (batch_size,), self.ddim_timestep_seq[i-1], device=device, dtype=torch.long)
-                    x = self.p_sample_ddim(x, cond, timesteps, timesteps_prev)
+                    x = self.p_sample_ddim(
+                        x, cond, timesteps, timesteps_prev, False, if_visualize)
                 x = condition_projection(
                     x, cond, self.action_dim, self.class_dim)
                 if self.mask_iteration == "add":
@@ -251,9 +266,12 @@ class GaussianDiffusion(nn.Module):
         # noise = torch.zeros_like(x_start)   # for Deterministic
         # x_noisy = noise   # for Noise and Deterministic
         mask = None
+        # print("here")
         if self.ifMask:
+            # print(x_start[0, 0, :self.class_dim])
             mask = compute_mask(x_start, self.class_dim,
-                                self.action_dim, self.horizon)
+                                self.action_dim, self.horizon, self.dataset)
+            # print(mask[0, 0, self.class_dim:self.class_dim+self.action_dim])
             x_start = x_start * mask
         # For diffusion, add noise to the input
         x_noisy = self.q_sample(x_start=x_start, t=t, noise=noise)
@@ -261,14 +279,18 @@ class GaussianDiffusion(nn.Module):
         x_noisy = condition_projection(
             x_noisy, cond, self.action_dim, self.class_dim)
 
-        x_recon = self.model(x_noisy, t)  # Reconstruct from noisy input
+        # Reconstruct from noisy input
+        x_recon = self.model(x_noisy, t, cond['observation'])
 
         # x_recon = x_noisy - x_recon
 
         x_recon = condition_projection(
             x_recon, cond, self.action_dim, self.class_dim)
 
-        if self.mask_loss == '1':
+        if self.loss_type == 'Sequence_CE':
+            loss = self.loss_fn(x_recon, x_start, self.l_order,
+                                self.l_pos, self.l_perm, self.kind)  # Compute the loss
+        elif self.mask_loss == '1':
             loss = self.loss_fn(x_recon, x_start, mask)  # Compute the loss
         else:
             loss = self.loss_fn(x_recon, x_start)
@@ -278,6 +300,8 @@ class GaussianDiffusion(nn.Module):
     def loss(self, x, cond):
         batch_size = len(x)  # Get the batch size
 
+        self.observation_img = x[:, :, :]
+
         # t.shape = (batch_size,)
         t = torch.randint(0, self.n_timesteps, (batch_size,),
                           device=x.device).long()  # Random timestep for diffusion
@@ -285,5 +309,5 @@ class GaussianDiffusion(nn.Module):
         return self.p_losses(x, cond, t)
 
     # Forward pass of the model
-    def forward(self, cond, if_jump=True, whetherTrain=True):
-        return self.p_sample_loop(cond, if_jump, whetherTrain)
+    def forward(self, cond, if_jump=True, if_visualize=False):
+        return self.p_sample_loop(cond, True, if_visualize)

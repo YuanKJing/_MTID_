@@ -109,12 +109,12 @@ def get_args(description='whl'):
                         help='training_steps_per_epoch')
     parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
                         help='manual epoch number (useful on restarts)')
-    
+
     parser.add_argument('--resume', dest='resume', action='store_true',
                         help='resume training from last checkpoint')
-    parser.add_argument('--resume_path', default='None',type=str,
+    parser.add_argument('--resume_path', default='None', type=str,
                         help='resume training from last checkpoint')
-    
+
     parser.add_argument('-e', '--evaluate', default=True, dest='evaluate', action='store_true',
                         help='evaluate model on validation set')
     parser.add_argument('--pretrained', dest='pretrained', action='store_true',
@@ -147,7 +147,7 @@ def get_args(description='whl'):
                         help='how many steps do we log once')
     parser.add_argument('--gpu', default=None, type=int,
                         help='GPU id to use.')
-    parser.add_argument('--pretrain_cnn_path',default=False,type=int)
+
     # parameters that need to be modified
     parser.add_argument('--seed', default=217, type=int,
                         help='seed for initializing training. ')
@@ -174,11 +174,10 @@ def get_args(description='whl'):
                         default=10,
                         help='')
 
-
     parser.add_argument('--base_model', type=str,
                         default='base', help='predictor')
-    parser.add_argument('--classfier_model',default='transformer',
-                        type=str,help='classfier model to use')
+    parser.add_argument('--classfier_model', default='transformer',
+                        type=str, help='classfier model to use')
     parser.add_argument('--n_diffusion_steps',
                         type=int,
                         default=200,
@@ -194,8 +193,10 @@ def get_args(description='whl'):
     #         dropout=dropout           # Dropout 概率
     parser.add_argument('--num_heads', type=int, default=4)
     parser.add_argument('--num_layers', type=int, default=2)
-    parser.add_argument('--dim_feedforward', type=int, default=1024,help='coin:2048')
-    parser.add_argument('--dropout', type=float, default=0.4,help='coin:0.7,others:0.4')
+    parser.add_argument('--dim_feedforward', type=int,
+                        default=1024, help='coin:2048')
+    parser.add_argument('--dropout', type=float,
+                        default=0.4, help='coin:0.7,others:0.4')
 
     parser.add_argument('--horizon',
                         type=int,
@@ -203,32 +204,48 @@ def get_args(description='whl'):
                         help='')
     parser.add_argument('--epochs', default=None, type=int, metavar='N',
                         help='number of total epochs to run')
-    parser.add_argument('--if_jump',default=1,
+    parser.add_argument('--if_jump', default=1,
                         type=int, help='whether to use DDIM to inference')
-    
+
     parser.add_argument('--loss_type', default='Weighted_Gradient_MSE', type=str,
-                    help='Weighted_Gradient_MSE: gradient change ; Sequence_CE: CE and order loss;')
-    parser.add_argument('--kind',default=0,type=int)
-    parser.add_argument('--l_order', default=1000.0, type=float, help='ratio of lambda_order')
-    parser.add_argument('--l_pos', default=1.0, type=float, help='ratio of lambda_pos')
-    parser.add_argument('--l_perm', default=1.0, type=float, help='ratio of lambda_perm')
-    parser.add_argument("--ifMask", type=bool,default=True, help="whether use mask")
-    parser.add_argument('--scale1',type=str,default='1/6')
-    parser.add_argument('--scale2',type=str,default='1/4')
-    parser.add_argument('--schedule',type=str,default='not')
-    parser.add_argument('--model_dim',type=int,default=256,help='model dimension')
-    parser.add_argument('--module_kind',type=str,default='all',help='ablation for module design')
-    parser.add_argument('--encoder_kind',type=str,default='conv')
-    parser.add_argument('--mask_loss',type=str,default='1',help='1')
+                        help='Weighted_Gradient_MSE: gradient change ; Sequence_CE: CE and order loss;')
+    parser.add_argument('--kind', default=0, type=int)
+    parser.add_argument('--l_order', default=1000.0,
+                        type=float, help='ratio of lambda_order')
+    parser.add_argument('--l_pos', default=1.0, type=float,
+                        help='ratio of lambda_pos')
+    parser.add_argument('--l_perm', default=1.0, type=float,
+                        help='ratio of lambda_perm')
+    parser.add_argument("--ifMask", action='store_true',
+                        default=False, help="whether use mask")
+    parser.add_argument('--scale1', type=str, default='1/6')
+    parser.add_argument('--scale2', type=str, default='1/4')
+    parser.add_argument('--schedule', type=str, default='not')
+    parser.add_argument('--model_dim', type=int,
+                        default=256, help='model dimension')
+    parser.add_argument('--module_kind', type=str,
+                        default='all', help='ablation for module design')
+    parser.add_argument('--encoder_kind', type=str, default='conv')
+    parser.add_argument('--mask_loss', type=str, default='none', help='1')
     parser.add_argument('--weight', default=6, type=float,
                         help='weight of the loss function')
-    parser.add_argument('--mask_iteration', type=str, default='none', help='add')
+    parser.add_argument('--mask_iteration', type=str,
+                        default='none', help='add')
     parser.add_argument('--transformer_num', type=int,
                         default=5, help='layer nums for transformer blocks,NIV:2,coin:7')
     parser.add_argument('--ie_num', type=int, default=1,
                         help='image encoder convolution layer num,NIV:2')
-    parser.add_argument('--interpolation_init',type=int,default=0,help='interpolation init schema')
-    parser.add_argument('--interpolation_usage',type=int,default=0,help='interpolation usage schema')
-    parser.add_argument('--mask_scale',type=float,default=1.1,help='scale of mask loss')
+    parser.add_argument('--interpolation_init', type=int,
+                        default=0, help='interpolation init schema')
+    parser.add_argument('--interpolation_usage', type=int,
+                        default=0, help='interpolation usage schema')
+    parser.add_argument('--mask_scale', type=float,
+                        default=1.1, help='scale of mask loss')
+    parser.add_argument('--if_context', type=int,
+                        default=0, help='whether use context')
+    parser.add_argument('--pretrain_cnn_path',
+                        type=str,
+                        default='',
+                        help='')
     args = parser.parse_args()
     return args
