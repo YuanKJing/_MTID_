@@ -13,7 +13,7 @@
 <!-- Teaser Image -->
 <div align="center" style="margin-top: 15px; width: 100%; max-width: 100%; position: relative;">
   <img src="figure/architecture1.png" alt="FreeBlend Teaser"
-       style="width: 100%; height: auto; aspect-ratio: 2.2 / 1; object-fit: fill; border-radius: 8px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);">
+       style="width: 100%; height: 90%; aspect-ratio: 2.2 / 1; object-fit: fill; border-radius: 8px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);">
 </div>
 
 <div align="left" style="margin-top: 15px;">

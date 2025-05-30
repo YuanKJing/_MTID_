@@ -40,7 +40,6 @@ class ResidualTemporalBlock(nn.Module):
         out = self.blocks[0](x) + self.time_mlp(t)   # for diffusion
         # Uncomment the following line for Noise and Deterministic Baselines
         # out = self.blocks[0](x)
-        # print(out.shape)
         out = self.blocks[1](out)
         return out + self.residual_conv(x)
 
@@ -60,7 +59,6 @@ class ActionModifier(nn.Module):
             actions[:, 70:] *= self.weights3
         return actions
 
-#  transition_dim=args.action_dim + args.observation_dim + args.class_dim,
 class TemporalUnet(nn.Module):
     def __init__(
         self,

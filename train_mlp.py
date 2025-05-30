@@ -8,7 +8,6 @@ import time
 import torch.nn.parallel
 import torch.backends.cudnn as cudnn
 import torch.distributed as dist
-import torch.optim
 import torch.multiprocessing as mp
 import torch.utils.data
 import torch.utils.data.distributed

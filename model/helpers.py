@@ -7,10 +7,6 @@ from torch.optim.lr_scheduler import LambdaLR
 import os
 import numpy as np
 import json
-import logging
-# from tensorboardX import SummaryWriter
-import itertools
-from collections import OrderedDict
 # from loss_function import compute_losses
 # from utils.args import get_args
 
@@ -253,7 +249,7 @@ def condition_projection(x, conditions, action_dim, class_dim):
 
 
 def compute_mask(x, class_dim, action_dim, horizon, dataset):
-    # args = get_args()
+
     task_class = {
         "0": 23521,
         "1": 59684,
@@ -286,7 +282,7 @@ def compute_mask(x, class_dim, action_dim, horizon, dataset):
             ),
             allow_pickle=True,
         ).item()
-    # 加载新的 classes_to_actions.json 映射
+    # load the new mapper from classes_to_actions.json
     elif dataset == 'coin':
         with open(os.path.join(current_dir, "dataset/coin/classes_to_actions.json"), "r") as f:
             classes_to_actions = json.load(f)
@@ -298,13 +294,11 @@ def compute_mask(x, class_dim, action_dim, horizon, dataset):
         action_indices = []
         if dataset == 'crosstask_how':
             for key, value in classes_to_actions.items():
-                # 检查键是否以 task_id 开头
+                # check the start of the key is begin with 'task_id'
                 if key.startswith(str(task_id) + "_"):
                     action_index = value
                     action_indices.append(action_index)
         else:
-            # print("task_id:", str(task_id))
-            # print(classes_to_actions[str(task_id)])
             if str(task_id) in classes_to_actions:
                 action_indices.extend(classes_to_actions[str(task_id)])
         return action_indices
@@ -318,9 +312,7 @@ def compute_mask(x, class_dim, action_dim, horizon, dataset):
             for j in action_indices:
                 mask[i, j] = 1.0
         else:
-            # print("jinru coin/NIV")
             action_indices = find_action_index(task_id, classes_to_actions)
-            # print("action_indices:", action_indices)
             for j in action_indices:
                 mask[i, j-1] = 1.0
 
@@ -333,55 +325,6 @@ def compute_mask(x, class_dim, action_dim, horizon, dataset):
 # -----------------------------------------------------------------------------#
 # ---------------------------------- Loss -------------------------------------#
 # -----------------------------------------------------------------------------#
-
-
-class Sequence_CE(nn.Module):
-
-    def __init__(self,  action_dim, class_dim, weight):
-        super().__init__()
-        self.action_dim = action_dim
-        self.class_dim = class_dim
-        self.weight = weight
-
-    def forward(self, pred, targ, l_order=200.0, l_pos=0.01, l_perm=2.0, kind=0):
-        """
-        :param pred: [B, T, task_dim+action_dim+observation_dim]
-        :param targ: [B, T, task_dim+action_dim+observation_dim]
-        :return:
-        """
-        mse_loss = F.mse_loss(pred, targ, reduction='none').sum()
-
-        total_loss, ce_loss, order_loss, pos_loss, \
-            perm_loss = compute_losses(pred[:, :, self.class_dim:self.class_dim +
-                                            self.action_dim], targ[:, :, self.class_dim:self.class_dim +
-                                                                   self.action_dim], lambda_oc=l_order,
-                                       lambda_fp=l_pos, lambda_r=l_perm)
-        if kind == 0:
-            return ce_loss
-        elif kind == 1:
-            return ce_loss + order_loss
-        elif kind == 2:
-            return ce_loss + pos_loss
-        elif kind == 3:
-            return ce_loss + perm_loss
-        elif kind == 4:
-            return mse_loss
-        elif kind == 5:
-            return mse_loss + order_loss
-        elif kind == 6:
-            return mse_loss + pos_loss
-        elif kind == 7:
-            return mse_loss + perm_loss
-        else:
-            RuntimeError('unvalid kind')
-
-        def scale_tuple_elements(t, factor=1000):
-            return tuple(x * factor for x in t)
-
-        # loss_action = scale_tuple_elements(loss_action)
-        # print(loss_action)
-
-        return ce_loss
 
 
 class Weighted_Gradient_MSE(nn.Module):
@@ -536,13 +479,7 @@ class Variance_Weighted_MSE(nn.Module):
         loss_action = loss_action.sum()
         return loss_action
 
-
-# 示例用法
-# predictions = torch.tensor([1.0, 2.0, 3.0, 4.0])
-# loss = variance_loss(predictions)
-# print("Loss:", loss.item())
 Losses = {
-    'Sequence_CE': Sequence_CE,
     'Weighted_Gradient_MSE': Weighted_Gradient_MSE,
     'Variance_Weighted_MSE': Variance_Weighted_MSE,
     'Weighted_MSE': Weighted_MSE
@@ -587,8 +524,7 @@ def get_lr_schedule_with_warmup(optimizer, num_training_steps, dataset,
     else:
         num_warmup_steps_scale = scale1
         decay_steps_scale = scale2
-    # num_warmup_steps_scale = 1 / 6
-    # decay_steps_scale = 1 / 4
+
     num_warmup_steps = int(num_training_steps * num_warmup_steps_scale)
     decay_steps = int(num_training_steps * decay_steps_scale)
 
@@ -613,55 +549,56 @@ def get_lr_schedule_with_warmup(optimizer, num_training_steps, dataset,
 
 
 class AverageMeter(object):
-    """Computes and stores the average and current value"""
+    """
+    AverageMeter is a utility class for tracking metrics during training or evaluation.
+    
+    It computes and stores:
+    - The current value
+    - The running average
+    - The sum of all values
+    - The count of updates
+    
+    This is commonly used to monitor metrics like loss, accuracy, or other statistics
+    across batches or epochs in training loops.
+    """
 
     def __init__(self):
+        """
+        Initialize the AverageMeter by resetting all statistics to zero.
+        """
         self.reset()
 
     def reset(self):
+        """
+        Reset all statistics.
+        
+        This method sets all tracking variables back to zero:
+        - val: stores the most recent update value
+        - avg: stores the current average (sum/count)
+        - sum: stores the sum of all values
+        - count: stores the number of updates
+        """
         self.val = 0
         self.avg = 0
         self.sum = 0
         self.count = 0
 
     def update(self, val, n=1):
+        """
+        Update the meter with a new value.
+        
+        Parameters:
+        - val (float): The value to be incorporated in the statistics
+        - n (int, optional): Number of items the value represents.
+          Useful when averaging batches of different sizes. Defaults to 1.
+        
+        This method:
+        1. Updates the current value (val)
+        2. Adds the weighted value to the sum
+        3. Increments the count
+        4. Recalculates the running average
+        """
         self.val = val
         self.sum += val * n
         self.count += n
         self.avg = self.sum / self.count
-
-
-# class Logger:
-#     def __init__(self, log_dir, n_logged_samples=10, summary_writer=SummaryWriter, if_exist=False):
-#         self._log_dir = log_dir
-#         print('logging outputs to ', log_dir)
-#         self._n_logged_samples = n_logged_samples
-#         self._summ_writer = summary_writer(
-#             log_dir, flush_secs=120, max_queue=10)
-#         if not if_exist:
-#             log = logging.getLogger(log_dir)
-#             if not log.handlers:
-#                 log.setLevel(logging.DEBUG)
-#                 if not os.path.exists(log_dir):
-#                     os.mkdir(log_dir)
-#                 fh = logging.FileHandler(os.path.join(log_dir, 'log.txt'))
-#                 fh.setLevel(logging.INFO)
-#                 formatter = logging.Formatter(
-#                     fmt='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S')
-#                 fh.setFormatter(formatter)
-#                 log.addHandler(fh)
-#             self.log = log
-
-#     def log_scalar(self, scalar, name, step_):
-#         self._summ_writer.add_scalar('{}'.format(name), scalar, step_)
-
-#     def log_scalars(self, scalar_dict, group_name, step, phase):
-#         """Will log all scalars in the same plot."""
-#         self._summ_writer.add_scalars('{}_{}'.format(
-#             group_name, phase), scalar_dict, step)
-
-#     def flush(self):
-#         self._summ_writer.flush()
-
-#     def log_info(self, info):
-#         self.log.info("{}".format(info))

@@ -4,7 +4,6 @@ import random
 import torch.nn.parallel
 import torch.backends.cudnn as cudnn
 import torch.distributed as dist
-import torch.optim
 import torch.multiprocessing as mp
 import torch.utils.data
 import torch.utils.data.distributed
@@ -13,7 +12,7 @@ import numpy as np
 from dataloader.data_load_json import PlanningDataset
 from utils import *
 from utils.args import get_args
-from train_mlp import ResMLP, TransformerHead
+from train_mlp import TransformerHead
 from utils.env_args import get_environment_shape
 from tqdm import tqdm
 

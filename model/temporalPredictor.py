@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import einops
 from einops.layers.torch import Rearrange
-import numpy as np
 from .helpers import (
     SinusoidalPosEmb,
     Downsample1d,
@@ -12,11 +11,6 @@ from .helpers import (
 from .actionPredictor import (
     ActionPredictor,
 )
-import datetime
-import random
-import os
-# Assuming Conv1dBlock, Rearrange, SinusoidalPosEmb, Downsample1d, Upsample1d are predefined
-
 
 class CrossAttention(nn.Module):
     def __init__(self, observation_dim, embed_dim, num_heads):
@@ -41,132 +35,6 @@ class CrossAttention(nn.Module):
         x = x + self.ffn(x)
         x = einops.rearrange(x, 'c b t -> b t c')
         return x
-
-
-def visualize_features(cross_features, sample_rate=40):
-    if random.random() > 0.1:
-        return
-
-    # Scientific style parameters
-    plt_style = {
-        'figure': {
-            'figsize': (15, 10),
-            'dpi': 300,
-            'facecolor': 'white',
-        },
-        'subplot': {
-            'wspace': 0.25,
-            'hspace': 0.3,
-        },
-        'font': {
-            'family': 'Arial',
-            'title_size': 16,
-            'label_size': 12,
-            'tick_size': 10,
-        },
-        'heatmap': {
-            'cmap': 'GnBu',
-            'center': 0,
-            'robust': True,
-            'square': True,
-            'cbar_width': 0.015,
-            'cbar_pad': 0.05,
-            'vmin': -2,
-            'vmax': 2,
-        },
-        'grid': {
-            'color': '#E0E0E0',
-            'linestyle': '-',
-            'linewidth': 0.5,
-            'alpha': 0.5
-        }
-    }
-
-    # Apply custom style settings directly
-    plt.rcParams.update({
-        'font.family': plt_style['font']['family'],
-        'font.size': plt_style['font']['label_size'],
-        'axes.titlesize': plt_style['font']['title_size'],
-        'axes.labelsize': plt_style['font']['label_size'],
-        'xtick.labelsize': plt_style['font']['tick_size'],
-        'ytick.labelsize': plt_style['font']['tick_size'],
-        'axes.grid': True,
-        'grid.color': plt_style['grid']['color'],
-        'grid.linestyle': plt_style['grid']['linestyle'],
-        'grid.linewidth': plt_style['grid']['linewidth'],
-        'grid.alpha': plt_style['grid']['alpha'],
-        'figure.facecolor': plt_style['figure']['facecolor'],
-        'axes.facecolor': plt_style['figure']['facecolor'],
-    })
-
-    output_dir = 'feature_maps'
-    os.makedirs(output_dir, exist_ok=True)
-
-    # Data preprocessing
-    features = cross_features.detach().cpu().numpy(
-    ) if torch.is_tensor(cross_features) else cross_features
-
-    # Downsampling (添加保护)
-    if sample_rate > 1:
-        features_downsampled = [
-            feat[::sample_rate, ::sample_rate] for feat in features]
-        features = np.array(features_downsampled)
-
-    # Standardization
-    # features = np.array(
-        # [(feat - np.mean(feat)) / (np.std(feat) + 1e-6) for feat in features])
-
-    # Create figure
-    fig, axes = plt.subplots(6, 2,
-                             figsize=plt_style['figure']['figsize'],
-                             dpi=plt_style['figure']['dpi'])
-    plt.subplots_adjust(wspace=plt_style['subplot']['wspace'],
-                        hspace=plt_style['subplot']['hspace'])
-
-    # Plot heatmaps
-    for i in range(12):
-        row, col = i // 2, i % 2
-
-        sns.heatmap(features[i],
-                    ax=axes[row, col],
-                    cmap=plt_style['heatmap']['cmap'],
-                    center=plt_style['heatmap']['center'],
-                    robust=plt_style['heatmap']['robust'],
-                    xticklabels=False,
-                    yticklabels=False,
-                    square=plt_style['heatmap']['square'],
-                    cbar=False,
-                    vmin=plt_style['heatmap']['vmin'],
-                    vmax=plt_style['heatmap']['vmax'])
-
-        axes[row, col].set_title(f'Feature Map {i+1}',
-                                 fontsize=plt_style['font']['title_size'],
-                                 pad=10,
-                                 fontfamily=plt_style['font']['family'])
-
-    # Add colorbar with fixed range
-    norm = plt.Normalize(vmin=plt_style['heatmap']['vmin'],
-                         vmax=plt_style['heatmap']['vmax'])
-    sm = plt.cm.ScalarMappable(cmap=plt_style['heatmap']['cmap'], norm=norm)
-    cbar_ax = fig.add_axes([
-        0.92 + plt_style['heatmap']['cbar_pad'],
-        0.15,
-        plt_style['heatmap']['cbar_width'],
-        0.7
-    ])
-    cbar = fig.colorbar(sm, cax=cbar_ax)
-    cbar.ax.tick_params(labelsize=plt_style['font']['tick_size'])
-
-    # Save figure
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f'feature_maps_{timestamp}.png'
-    filepath = os.path.join(output_dir, filename)
-
-    plt.savefig(filepath,
-                bbox_inches='tight',
-                facecolor=plt_style['figure']['facecolor'])
-    plt.close()
-
 
 class ResidualTemporalBlock(nn.Module):
 
@@ -291,76 +159,25 @@ class TemporalUnet(nn.Module):
                                                self.block_num
                                                )
 
-    # x shape (batch_size,horizon,dimension)
-
     def forward(self, x, time, observation_img=None, if_visualize=False):
 
-        # print(x.shape)torch.Size([256, 3, 1659])
-        # print(time.shape)torch.Size([256])
-        #  args.action_dim + args.observation_dim + args.class_dim
-
-        # shape (num_frames, batch_size, observation_dim)
         cross_features = self.ActionPredictor(x[:, 0, self.args.class_dim + self.args.action_dim:],
                                               x[:, -1, self.args.class_dim + self.args.action_dim:])
 
-        # # print(cross_features.shape) torch.Size([256, 12, 1536])
         cross_features = cross_features.permute(1, 0, 2)
-        # cross_features = cross_features.repeat_interleave(4, dim=0)
 
-        # if if_visualize:
-        #     visualize_features(cross_features)
-
-        # print("cross_features shape")
-        # print(cross_features.shape)  # torch.Size([12, 256, 1536])
-        # observation_img = observation_img.permute(1, 0, 2)  # [L, B, D]
-        # seq_len = observation_img.size(0)
-
-        # print('seq_len', seq_len)
-
-        # if seq_len == 7:
-        #     # First frame repeated once
-        #     first_frame = observation_img[0:1]  # 1 frame
-        #     # Middle frames repeated twice -> 10 frames
-        #     middle_frames = observation_img[1:-1].repeat_interleave(2, dim=0)
-        #     # Last frame repeated once
-        #     last_frame = observation_img[-1:]  # 1 frame
-        #     cross_features = torch.cat(
-        #         [first_frame, middle_frames, last_frame], dim=0)
-        # elif seq_len == 4:
-        #     # Repeat each frame 3 times -> 12 frames
-        #     cross_features = observation_img.repeat_interleave(3, dim=0)
-        # elif seq_len == 6:
-        #     # Repeat each frame 2 times -> 12 frames
-        #     cross_features = observation_img.repeat_interleave(2, dim=0)
-        # elif seq_len == 5:
-        #     # Repeat first and last frames 3 times, middle frames 2 times -> 12 frames
-        #     first_frame = observation_img[0:1].repeat(3, 1, 1)  # 3 frames
-        #     # 6 frames
-        #     middle_frames = observation_img[1:-1].repeat_interleave(2, dim=0)
-        #     last_frame = observation_img[-1:].repeat(3, 1, 1)  # 3 frames
-        #     cross_features = torch.cat(
-        #         [first_frame, middle_frames, last_frame], dim=0)
-        # else:
-        #     raise ValueError(f"Unexpected sequence length: {seq_len}")
-
-        # x shape (batch_size,horizon,dimension)
-        # Rearrange input tensor dimensions
         x = einops.rearrange(x, 'b h t -> b t h')
 
         # Get the time embedding (for diffusion models)
         # Uncomment the following line for Noise and Deterministic Baselines
         # t = None
 
-        # t = torch.randint(0, self.n_timesteps, (batch_size,),
-        #    device=x.device).long()  # Random timestep for diffusion
         t = self.time_mlp(time)   # for diffusion
 
-        # print(t.shape)torch.Size([256, 256])
         h = []
         index = 0
 
         if self.if_context == 0:
-
             # Forward pass through downsampling blocks
             for resnet, resnet2, downsample in self.downs:
                 x = resnet(x, t, cross_features[index])
@@ -466,34 +283,3 @@ class TemporalUnet(nn.Module):
         x = einops.rearrange(x, 'b t h -> b h t')
 
         return x
-        # return x
-
-
-# shape of x
-
-# torch.Size([12, 256, 1536])
-
-# start-------------------------------
-# torch.Size([256, 256, 3])
-# torch.Size([256, 256, 3])
-# up--------------
-# torch.Size([256, 512, 2])
-# torch.Size([256, 512, 2])
-# up--------------
-# torch.Size([256, 1024, 1])
-# torch.Size([256, 1024, 1])
-# up--------------
-# middle-------------
-# torch.Size([256, 1024, 1])
-# torch.Size([256, 1024, 1])
-# middle-------------
-# torch.Size([256, 512, 1])
-# torch.Size([256, 512, 1])
-# down--------------
-# torch.Size([256, 256, 2])
-# torch.Size([256, 256, 2])
-# down--------------
-# final-----------------------
-# torch.Size([256, 256, 3])
-# torch.Size([256, 1659, 3])
-# torch.Size([256, 3, 1659])

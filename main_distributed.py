@@ -7,7 +7,6 @@ from collections import OrderedDict
 import torch.nn.parallel
 import torch.backends.cudnn as cudnn
 import torch.distributed as dist
-import torch.optim
 import torch.multiprocessing as mp
 import torch.utils.data
 import torch.utils.data.distributed
@@ -487,12 +486,6 @@ def main_worker(gpu, ngpus_per_node, args):
 
         # print experiment results
         print(f"{args.name} {args.dataset} {args.horizon} {old_max_epoch} {Traj_Success_Rate} {EpochAcc1} {MIoU2}")
-
-
-# def log(output, args):
-#     with open(os.path.join(os.path.dirname(__file__), 'log', args.checkpoint_dir + '.txt'), "a") as f:
-#         f.write(output + '\n')
-
 
 def save_checkpoint(name, state, checkpoint_dir, epoch, n_ckpt=3):
     torch.save(state, os.path.join(checkpoint_dir,
