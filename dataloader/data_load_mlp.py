@@ -13,7 +13,7 @@ def valid_raw_file(file, horizon):
     with open(file, 'r') as f:
         json_data = json.load(f)
 
-    if len(json_data) !=0 and 'id' in json_data[0] and horizon == len(json_data[0]['id']['legal_range']):
+    if len(json_data) != 0 and 'id' in json_data[0] and horizon == len(json_data[0]['id']['legal_range']):
         return True
     else:
         return False
@@ -82,7 +82,6 @@ class PlanningDataset(Dataset):
         self.last_vid = ''
 
         print(args.dataset)
-        
 
         if 'crosstask' in args.dataset:
             # print('----------')
@@ -101,8 +100,9 @@ class PlanningDataset(Dataset):
                     └── videos_val.csv or json
             """
 
-            val_csv_path = '/home/hwang/Projects/MTID/dataset/crosstask/crosstask_release/raw/test_list.json'
-            video_csv_path = '/home/hwang/Projects/MTID/dataset/crosstask/crosstask_release/raw/train_list.json'  # 'videos.csv')
+            val_csv_path = './dataset/crosstask/crosstask_release/raw/test_list.json'
+            # 'videos.csv')
+            video_csv_path = './dataset/crosstask/crosstask_release/raw/train_list.json'
 
             if crosstask_use_feature_how:
                 self.features_path = os.path.join(root, 'processed_data')
@@ -342,7 +342,7 @@ class PlanningDataset(Dataset):
                     legal_range = []
                     path = d['feature']
                     info = np.load(path, allow_pickle=True)
-                    num_steps = int(info['num_steps']) #
+                    num_steps = int(info['num_steps'])
                     assert num_steps == len(info['steps_ids'])
                     assert info['num_steps'] == len(info['steps_starts'])
                     assert info['num_steps'] == len(info['steps_ends'])
@@ -503,7 +503,7 @@ class PlanningDataset(Dataset):
             event_class = folder_id['task_id']
         else:
             task_class = folder_id['task_id']
-        
+
         # Define dataset paths
         self.dataset_paths = {
             "crosstask_how": "crosstask/processed_data/",
@@ -511,17 +511,18 @@ class PlanningDataset(Dataset):
             "coin": "coin/full_npy/",
             "NIV": "NIV/processed_data/"
         }
-        
-        self.current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+        self.current_dir = os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__)))
         # Determine the dataset path
         dataset_path = self.dataset_paths.get(self.args.dataset, "")
         full_path = os.path.join(self.current_dir, "dataset", dataset_path)
-        
+
         # print('---------------------------')
         # print(folder_id['feature'])
-        
+
         feature_filename = os.path.basename(folder_id['feature'])
-        
+
         # print(feature_filename)
         feature_path = os.path.join(full_path, feature_filename)
 

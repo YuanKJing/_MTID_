@@ -21,3 +21,5 @@ out/
 wandb/
 whl.txt
 test.ipynb
+dataset/crosstask/processed_data.zip
+dataset/crosstask/crosstask_release/annotations.zip

@@ -366,7 +366,7 @@ def main_worker(gpu, ngpus_per_node, args):
     checkpoint_dir = os.path.join(os.path.dirname(
         __file__), 'checkpoint_mlp', args.checkpoint_dir)
     if args.checkpoint_dir != '' and not (os.path.isdir(checkpoint_dir)) and args.rank == 0:
-        os.mkdir(checkpoint_dir)
+        os.makedirs(checkpoint_dir, exist_ok=True)
 
     if args.resume:
         checkpoint_path = get_last_checkpoint(checkpoint_dir)
@@ -405,9 +405,7 @@ def main_worker(gpu, ngpus_per_node, args):
             train_sampler.set_epoch(epoch)
         if (epoch + 1) % 2 == 0 and args.evaluate:
             losses, acc = test(test_loader, model)
-
             max_test_acc = max(max_test_acc, acc)
-
             losses_reduced = reduce_tensor(losses.cuda()).item()
             acc_reduced = reduce_tensor(acc.cuda()).item()
 

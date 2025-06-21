@@ -40,6 +40,7 @@ class PlanningDataset(Dataset):
                     self.json_data = json.load(f)
                 print('Loaded {}'.format(cross_task_data_name))
             else:
+                print('File {} does not exist'.format(cross_task_data_name))
                 assert 0
         elif args.dataset == 'coin':
             if is_val:
