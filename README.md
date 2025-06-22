@@ -49,6 +49,8 @@ bash download.sh
 
 dataset_name = crosstask, coin, NIV
 
+Or you can find the datasets from the [huggingface](https://huggingface.co/datasets/WiserZhou/ProcedurePlanning/tree/main).
+
 ### Train
 
 ------
