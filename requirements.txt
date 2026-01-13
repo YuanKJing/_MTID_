@@ -3,7 +3,6 @@ certifi==2025.6.15
 charset-normalizer==3.4.2
 click==8.2.1
 einops==0.8.1
-filelock==3.18.0
 fsspec==2025.5.1
 gitdb==4.0.12
 GitPython==3.1.44
@@ -44,5 +43,4 @@ tqdm==4.67.1
 triton==3.3.1
 typing-inspection==0.4.1
 typing_extensions==4.14.0
-urllib3==2.5.0
 wandb==0.20.1
